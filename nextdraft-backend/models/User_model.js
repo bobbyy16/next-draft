@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema({
     required: [true, "Please add an email"],
     unique: true,
   },
-  passwordHash: {
+  password: {
     type: String,
     required: [true, "Please add a password"],
   },
@@ -21,15 +21,24 @@ const userSchema = new mongoose.Schema({
   },
   industry: {
     type: String,
-    default: "",
+    enum: [
+      "Software",
+      "Finance",
+      "Healthcare",
+      "Education",
+      "Marketing",
+      "Other",
+    ],
+    default: "Other",
   },
   experienceLevel: {
     type: String,
-    default: "",
+    enum: ["Intern", "Junior", "Mid-level", "Senior", "Lead", "Manager"],
+    default: "Intern",
   },
   profileImage: {
-    type: String,
-    default: "",
+    url: { type: String, default: "" },
+    public_id: { type: String, default: "" },
   },
   createdAt: {
     type: Date,
@@ -41,17 +50,17 @@ const userSchema = new mongoose.Schema({
   },
 });
 
-// Password hashing before saving
+// Password hashing
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("passwordHash")) return next();
+  if (!this.isModified("password")) return next();
   const salt = await bcrypt.genSalt(10);
-  this.passwordHash = await bcrypt.hash(this.passwordHash, salt);
+  this.password = await bcrypt.hash(this.password, salt);
   next();
 });
 
 // Method to match password
 userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.passwordHash);
+  return await bcrypt.compare(enteredPassword, this.password);
 };
 
 module.exports = mongoose.model("User", userSchema);

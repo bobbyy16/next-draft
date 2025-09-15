@@ -23,6 +23,10 @@ app.get("/", (req, res) => {
   res.send("NextDraft API is running...");
 });
 
+// User routes
+const userRoutes = require("./routes/user_route");
+app.use("/api/users", userRoutes);
+
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
