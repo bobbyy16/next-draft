@@ -25,7 +25,9 @@ app.get("/", (req, res) => {
 
 // User routes
 const userRoutes = require("./routes/user_route");
+const resumeRoutes = require("./routes/resume_routes");
 app.use("/api/users", userRoutes);
+app.use("/api/resumes", resumeRoutes);
 
 // Start server
 const PORT = process.env.PORT || 5000;
