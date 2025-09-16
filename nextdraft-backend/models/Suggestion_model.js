@@ -15,7 +15,6 @@ const suggestionSchema = new mongoose.Schema({
     {
       type: {
         type: String,
-        enum: ["keyword", "phrasing", "formatting"],
         required: true,
       },
       originalText: String,

@@ -15,10 +15,6 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, "Please add a password"],
   },
-  oauthProvider: {
-    type: String,
-    default: null,
-  },
   industry: {
     type: String,
     enum: [

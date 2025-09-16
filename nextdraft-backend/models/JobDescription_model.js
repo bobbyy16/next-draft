@@ -1,3 +1,4 @@
+// models/JobDescription_model.js
 const mongoose = require("mongoose");
 
 const jobDescriptionSchema = new mongoose.Schema({
@@ -6,17 +7,9 @@ const jobDescriptionSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
-  fileName: {
-    type: String,
-    required: true,
-  },
-  fileUrl: {
-    type: String,
-    required: true,
-  },
   parsedText: {
     type: String,
-    default: "",
+    required: true,
   },
   roleTitle: {
     type: String,

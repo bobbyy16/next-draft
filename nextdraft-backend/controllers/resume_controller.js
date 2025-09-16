@@ -1,36 +1,57 @@
 const cloudinary = require("../config/cloudinary");
 const fs = require("fs");
+const pdfParse = require("pdf-parse");
+const mammoth = require("mammoth");
 const Resume = require("../models/Resume_model");
 
 // -------------------- UPLOAD RESUME --------------------
 const uploadResume = async (req, res) => {
   try {
-    if (!req.file)
+    if (!req.file) {
       return res.status(400).json({ message: "No resume file uploaded" });
+    }
 
     // Upload to Cloudinary
     const result = await cloudinary.uploader.upload(req.file.path, {
-      folder: `resumes/${req.user.name}`,
+      folder: `resumes/${req.user._id}`,
       resource_type: "raw",
     });
 
-    // Delete temp file
+    // Read file for parsing
+    let parsedText = "";
+    let originalText = "";
+
+    if (req.file.mimetype === "application/pdf") {
+      const dataBuffer = fs.readFileSync(req.file.path);
+      const data = await pdfParse(dataBuffer);
+      parsedText = data.text;
+      originalText = data.text;
+    } else if (
+      req.file.mimetype ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ) {
+      const data = await mammoth.extractRawText({ path: req.file.path });
+      parsedText = data.value;
+      originalText = data.value;
+    }
+
+    // Clean up local file
     fs.unlinkSync(req.file.path);
 
-    // Save to MongoDB
+    // Save to DB
     const resume = await Resume.create({
       userId: req.user._id,
       fileName: req.file.originalname,
       fileUrl: result.secure_url,
-      parsedText: "",
-      originalText: "",
+      parsedText,
+      originalText,
       version: 1,
       isEdited: false,
     });
 
-    res.status(201).json({ message: "Resume uploaded successfully", resume });
+    res.status(201).json({ message: "Resume uploaded & parsed", resume });
   } catch (error) {
-    console.error(error);
+    console.error("Resume upload error:", error);
     if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     res.status(500).json({ message: "Resume upload failed" });
   }

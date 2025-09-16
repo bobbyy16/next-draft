@@ -12,6 +12,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "aws-sdk": "^2.1692.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.7.0",
@@ -24,6 +25,8 @@
     "mongoose": "^8.18.1",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
+    "openai": "^5.20.3",
+    "openapi": "^1.0.1",
     "pdf-parse": "^1.1.1"
   }
 }
