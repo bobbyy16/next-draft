@@ -1,101 +1,130 @@
-# NextDraft App
+# NextDraft - AI-Powered Resume Optimizer Backend
 
-NextDraft is a modern SaaS platform for managing job descriptions, resumes, suggestions, and user profiles. It features a full-stack architecture with a Next.js frontend and a Node.js/Express backend, designed for scalability and ease of use.
+NextDraft is an AI-powered resume optimization platform that helps users enhance their resumes based on job descriptions using Google Gemini AI. Built with the MERN stack, it provides intelligent suggestions to improve resume content, keyword optimization, and ATS compatibility.
 
-## Features
+## 🔗 Links
 
-- User authentication (login/register)
-- Dashboard for managing job descriptions, resumes, suggestions, and profiles
-- Upload and manage resumes and images
-- Responsive UI with reusable components
-- RESTful API backend with MongoDB
-- Cloudinary integration for file uploads
+- **Frontend**: [https://next-draft-dun.vercel.app/](https://next-draft-dun.vercel.app/)
+- **Backend API**: [https://next-draft.onrender.com](https://next-draft.onrender.com)
+- **Repository**: [https://github.com/bobbyy16/next-draft](https://github.com/bobbyy16/next-draft)
+- **Demo**: []()
 
-## Tech Stack
+## ✨ Features
 
-- **Frontend:** Next.js, React, TypeScript, Tailwind CSS
-- **Backend:** Node.js, Express.js, MongoDB
-- **File Uploads:** Cloudinary
-- **Package Manager:** pnpm
+- 🔐 **User Authentication** - Secure JWT-based authentication
+- 📄 **Resume Upload & Parsing** - Support for PDF and DOCX files
+- 💼 **Job Description Management** - Store and manage job descriptions
+- 🤖 **AI-Powered Suggestions** - Google Gemini AI integration for intelligent resume optimization
+- 📊 **Dashboard Analytics** - Comprehensive insights and statistics
+- ☁️ **Cloud Storage** - Cloudinary integration for file management
+- 🔍 **ATS Optimization** - Improve applicant tracking system compatibility
 
-## Project Structure
+## 🛠️ Tech Stack
+
+- **Backend**: Node.js, Express.js
+- **Database**: MongoDB with Mongoose ODM
+- **AI Integration**: Google Gemini AI
+- **File Storage**: Cloudinary
+- **Authentication**: JWT (JSON Web Tokens)
+- **File Processing**: PDF-parse, Mammoth
+- **Security**: Bcrypt, Helmet, CORS
+
+## 📋 Prerequisites
+
+Before running this application, make sure you have:
+
+- Node.js (v18 or higher)
+- MongoDB database
+- Cloudinary account
+- Google Gemini AI API key
+
+## 🚀 Installation & Setup
+
+1. **Clone the repository**
+
+```bash
+git clone https://github.com/bobbyy16/next-draft.git
+cd next-draft
+```
+
+2. **Install dependencies**
+
+```bash
+npm install
+```
+
+3. **Environment Variables**
+   Create a `.env` file in the root directory:
+
+```env
+# Server Configuration
+PORT=5000
+NODE_ENV=development
+
+# Database
+MONGODB_URI=your_mongodb_connection_string
+
+# JWT Secret
+JWT_SECRET=your_jwt_secret_key
+
+# Cloudinary Configuration
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+
+# Google Gemini AI
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+4. **Start the application**
+
+```bash
+# Development
+npm run dev
+
+# Production
+npm start
+```
+
+### Authentication
+
+All protected routes require JWT token in headers:
 
 ```
-nextdraft-app-purple/      # Frontend (Next.js)
-  app/                    # Application pages and layouts
-  components/             # Reusable UI components
-  hooks/                  # Custom React hooks
-  lib/                    # Utility functions
-  public/                 # Static assets
-  styles/                 # Global styles
-  ...
-nextdraft-backend/        # Backend (Node.js/Express)
-  config/                 # Configuration files
-  controllers/            # Route controllers
-  middleware/             # Express middleware
-  models/                 # Mongoose models
-  routes/                 # API routes
-  services/               # Business logic
-  uploads/                # Uploaded files
+Authorization: Bearer <your_jwt_token>
 ```
 
-## Getting Started
+## 🔒 Security Features
 
-### Prerequisites
+- **JWT Authentication** - Secure token-based authentication
+- **Password Hashing** - Bcrypt encryption for passwords
+- **Helmet** - Security headers middleware
+- **CORS** - Cross-origin resource sharing configuration
+- **File Validation** - File type and size restrictions
+- **Route Protection** - Middleware-based route protection
 
-- Node.js >= 18.x
-- pnpm (recommended)
-- MongoDB instance
-- Cloudinary account (for uploads)
+## 🤝 Contributing
 
-### Installation
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Commit changes: `git commit -am 'Add feature'`
+4. Push to branch: `git push origin feature-name`
+5. Submit a Pull Request
 
-1. **Clone the repository:**
+## 📄 License
 
-   ```powershell
-   git clone <repo-url>
-   cd next-draft
-   ```
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-2. **Install dependencies:**
+## 👨‍💻 Author
 
-   ```powershell
-   pnpm install
-   ```
+**Bobby** - [@bobbyy16](https://github.com/bobbyy16)
 
-3. **Configure environment variables:**
+## 🐛 Issues & Support
 
-   - Create `.env` files in both `nextdraft-app-purple` and `nextdraft-backend` folders.
-   - Add MongoDB and Cloudinary credentials as needed.
+If you encounter any issues or have questions:
 
-4. **Run the backend server:**
+1. Check existing [GitHub Issues](https://github.com/bobbyy16/next-draft/issues)
+2. Create a new issue with detailed information
+3. Include error messages, screenshots, and steps to reproduce
 
-   ```powershell
-   cd nextdraft-backend
-   pnpm start
-   ```
-
-5. **Run the frontend app:**
-
-   ```powershell
-   cd nextdraft-app-purple
-   pnpm dev
-   ```
-
-6. **Access the app:**
-   - Frontend: [http://localhost:3000](http://localhost:3000)
-   - Backend: [http://localhost:5000](http://localhost:5000)
-
-## Scripts
-
-- `pnpm dev` — Start Next.js development server
-- `pnpm build` — Build Next.js app for production
-- `pnpm start` — Start backend server
-
-## Contributing
-
-Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
-
-## License
-
-This project is licensed under the MIT License.
+⭐ **Star this repository if you found it helpful!**
