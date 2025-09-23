@@ -7,7 +7,7 @@ NextDraft is an AI-powered resume optimization platform that helps users enhance
 - **Frontend**: [https://next-draft-dun.vercel.app/](https://next-draft-dun.vercel.app/)
 - **Backend API**: [https://next-draft.onrender.com](https://next-draft.onrender.com)
 - **Repository**: [https://github.com/bobbyy16/next-draft](https://github.com/bobbyy16/next-draft)
-- **Demo**: [Watch Demo Video on Loom](https://www.loom.com/share/99479d7c172643309bb0ca9002058f7c)
+- **Demo**: [Demo video](https://www.loom.com/share/99479d7c172643309bb0ca9002058f7c)
 
 ## ✨ Features
 
