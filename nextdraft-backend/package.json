@@ -27,6 +27,7 @@
     "multer": "^2.0.2",
     "openai": "^5.20.3",
     "openapi": "^1.0.1",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "pdfkit": "^0.17.2"
   }
 }

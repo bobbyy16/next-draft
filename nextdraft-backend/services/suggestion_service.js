@@ -2,7 +2,7 @@ const Suggestion = require("../models/Suggestion_model");
 const Resume = require("../models/Resume_model");
 const JobDescription = require("../models/JobDescription_model");
 
-// Install: npm install @google/generative-ai
+// Google Generative AI
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Initialize Gemini
@@ -50,6 +50,8 @@ Focus on:
 - Better action verbs and quantified achievements  
 - Professional phrasing improvements
 - Technical skills alignment
+- Don't suggest changes that alter factual content like job titles or dates.
+- Don't add brackets or markdown formatting around the JSON, take the input as is.
 `;
 
     const result = await model.generateContent(prompt);
@@ -58,21 +60,18 @@ Focus on:
 
     let suggestionsData;
     try {
-      // Clean the response - remove any markdown formatting
       const cleanedText = text
         .replace(/```json\n?/g, "")
         .replace(/```\n?/g, "")
         .trim();
       suggestionsData = JSON.parse(cleanedText);
     } catch (parseError) {
-      console.error("Failed to parse Gemini response:", text);
-      // Fallback suggestions
       suggestionsData = [
         {
           type: "keyword",
           originalText: "Unable to parse suggestions",
           suggestedText: "Please try again - response format issue",
-          explanation: "AI response was not in expected JSON format",
+          explanation: "Response was not in expected JSON format",
           priority: "low",
         },
       ];

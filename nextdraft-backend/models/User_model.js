@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema({
       "Healthcare",
       "Education",
       "Marketing",
+      "Sales",
       "Other",
     ],
     default: "Other",

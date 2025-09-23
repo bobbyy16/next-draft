@@ -59,8 +59,33 @@ const getJobDescriptionById = async (req, res) => {
   }
 };
 
+const deleteJobDescription = async (req, res) => {
+  try {
+    const job = await JobDescription.findById(req.params.id);
+
+    if (!job) {
+      return res.status(404).json({ message: "Job Description not found" });
+    }
+
+    // Ensure user owns this JD
+    if (job.userId.toString() !== req.user._id.toString()) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to delete this JD" });
+    }
+
+    await job.deleteOne();
+
+    res.status(200).json({ message: "Job Description deleted successfully" });
+  } catch (error) {
+    console.error("Delete JD error:", error);
+    res.status(500).json({ message: "Failed to delete job description" });
+  }
+};
+
 module.exports = {
   uploadJobDescription,
   getAllJobDescriptions,
   getJobDescriptionById,
+  deleteJobDescription,
 };
