@@ -30,6 +30,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { getAuthToken } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/utils";
 
 interface Resume {
   _id: string;
@@ -86,7 +87,7 @@ export default function SuggestionsPage() {
   const fetchResumes = async () => {
     try {
       const token = getAuthToken();
-      const response = await fetch("http://localhost:5000/api/resumes", {
+      const response = await fetch(`${API_BASE_URL}/api/resumes`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -104,14 +105,11 @@ export default function SuggestionsPage() {
   const fetchJobDescriptions = async () => {
     try {
       const token = getAuthToken();
-      const response = await fetch(
-        "http://localhost:5000/api/job-descriptions",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/job-descriptions`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -135,20 +133,17 @@ export default function SuggestionsPage() {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(
-        "http://localhost:5000/api/suggestions/generate",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            resumeId: selectedResumeId,
-            jobId: selectedJobId,
-          }),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/suggestions/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          resumeId: selectedResumeId,
+          jobId: selectedJobId,
+        }),
+      });
 
       const data = await response.json();
 

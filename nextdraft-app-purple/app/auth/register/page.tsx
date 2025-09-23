@@ -24,6 +24,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FileText, Eye, EyeOff, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { API_BASE_URL } from "@/lib/utils";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -72,7 +73,7 @@ export default function RegisterPage() {
         formDataToSend.append("profileImage", profileImage);
       }
 
-      const response = await fetch("http://localhost:5000/api/users/register", {
+      const response = await fetch(`${API_BASE_URL}/api/users/register`, {
         method: "POST",
         body: formDataToSend,
       });

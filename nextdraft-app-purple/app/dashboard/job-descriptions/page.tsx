@@ -26,6 +26,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Briefcase, Plus, Eye, Trash2, Building } from "lucide-react";
 import { getAuthToken } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/utils";
 
 interface JobDescription {
   _id: string;
@@ -59,14 +60,11 @@ export default function JobDescriptionsPage() {
   const fetchJobDescriptions = async () => {
     try {
       const token = getAuthToken();
-      const response = await fetch(
-        "http://localhost:5000/api/job-descriptions",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/job-descriptions`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -104,7 +102,7 @@ export default function JobDescriptionsPage() {
 
       const token = getAuthToken();
       const response = await fetch(
-        "http://localhost:5000/api/job-descriptions/upload",
+        `${API_BASE_URL}/api/job-descriptions/upload`,
         {
           method: "POST",
           headers: {
@@ -139,7 +137,7 @@ export default function JobDescriptionsPage() {
     try {
       const token = getAuthToken();
       const response = await fetch(
-        `http://localhost:5000/api/job-descriptions/${jobId}`,
+        `${API_BASE_URL}/api/job-descriptions/${jobId}`,
         {
           method: "DELETE",
           headers: {

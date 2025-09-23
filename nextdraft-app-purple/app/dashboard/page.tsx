@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { getAuthToken } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -107,7 +108,7 @@ export default function DashboardPage() {
 
       // Fetch recent resumes (last 5)
       const resumesResponse = await fetch(
-        "http://localhost:5000/api/resumes?limit=5",
+        `${API_BASE_URL}/api/resumes?limit=5`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -117,7 +118,7 @@ export default function DashboardPage() {
 
       // Fetch recent job descriptions (last 5)
       const jobsResponse = await fetch(
-        "http://localhost:5000/api/job-descriptions?limit=5",
+        `${API_BASE_URL}/api/job-descriptions?limit=5`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -126,17 +127,14 @@ export default function DashboardPage() {
       );
 
       // Fetch all data for stats
-      const allResumesResponse = await fetch(
-        "http://localhost:5000/api/resumes",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const allResumesResponse = await fetch(`${API_BASE_URL}/api/resumes`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       const allJobsResponse = await fetch(
-        "http://localhost:5000/api/job-descriptions",
+        `${API_BASE_URL}/api/job-descriptions`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -212,22 +210,19 @@ export default function DashboardPage() {
         .map((k) => k.trim())
         .filter((k) => k.length > 0);
 
-      const response = await fetch(
-        "http://localhost:5000/api/job-descriptions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            roleTitle: formData.roleTitle,
-            companyName: formData.companyName,
-            keywords: keywordsArray,
-            text: formData.text,
-          }),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/job-descriptions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          roleTitle: formData.roleTitle,
+          companyName: formData.companyName,
+          keywords: keywordsArray,
+          text: formData.text,
+        }),
+      });
 
       if (response.ok) {
         setSuccess("Job description added successfully!");

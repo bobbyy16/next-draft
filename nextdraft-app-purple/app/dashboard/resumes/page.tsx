@@ -24,6 +24,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Upload, Eye, Trash2, ExternalLink } from "lucide-react";
 import { getAuthToken } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/utils";
 
 interface Resume {
   _id: string;
@@ -58,7 +59,7 @@ export default function ResumesPage() {
         return;
       }
 
-      const response = await fetch("http://localhost:5000/api/resumes", {
+      const response = await fetch(`${API_BASE_URL}/api/resumes`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -143,7 +144,7 @@ export default function ResumesPage() {
         console.log("FormData entry:", key, value);
       }
 
-      const response = await fetch("http://localhost:5000/api/resumes/upload", {
+      const response = await fetch(`${API_BASE_URL}/api/resumes/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -205,15 +206,12 @@ export default function ResumesPage() {
         return;
       }
 
-      const response = await fetch(
-        `http://localhost:5000/api/resumes/${resumeId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (response.ok) {
         fetchResumes();

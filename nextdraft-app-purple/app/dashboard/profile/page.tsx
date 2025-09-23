@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { User, Upload, Save, Trash2 } from "lucide-react";
 import { getAuthToken, getUser, logout } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/utils";
 
 interface UserProfile {
   _id: string;
@@ -105,16 +106,13 @@ export default function ProfilePage() {
       }
 
       const token = getAuthToken();
-      const response = await fetch(
-        `http://localhost:5000/api/users/${profile._id}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formDataToSend,
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/users/${profile._id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formDataToSend,
+      });
 
       const data = await response.json();
 
@@ -154,15 +152,12 @@ export default function ProfilePage() {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(
-        `http://localhost:5000/api/users/${profile._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/users/${profile._id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (response.ok) {
         logout();
