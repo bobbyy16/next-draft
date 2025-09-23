@@ -216,21 +216,6 @@ export default function JobDescriptionsPage() {
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription className="text-sm">
-                      {error}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                {success && (
-                  <Alert>
-                    <AlertDescription className="text-sm">
-                      {success}
-                    </AlertDescription>
-                  </Alert>
-                )}
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="roleTitle" className="text-sm font-medium">
@@ -325,18 +310,6 @@ export default function JobDescriptionsPage() {
             </DialogContent>
           </Dialog>
         </div>
-
-        {/* Success/Error Messages */}
-        {success && (
-          <Alert className="max-w-2xl">
-            <AlertDescription className="text-sm">{success}</AlertDescription>
-          </Alert>
-        )}
-        {error && (
-          <Alert variant="destructive" className="max-w-2xl">
-            <AlertDescription className="text-sm">{error}</AlertDescription>
-          </Alert>
-        )}
 
         {/* Job Descriptions Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
@@ -450,21 +423,6 @@ export default function JobDescriptionsPage() {
                     </DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    {error && (
-                      <Alert variant="destructive">
-                        <AlertDescription className="text-sm">
-                          {error}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {success && (
-                      <Alert>
-                        <AlertDescription className="text-sm">
-                          {success}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label

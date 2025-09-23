@@ -22,14 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import {
-  FileText,
-  Upload,
-  Eye,
-  Trash2,
-  Download,
-  ExternalLink,
-} from "lucide-react";
+import { FileText, Upload, Eye, Trash2, ExternalLink } from "lucide-react";
 import { getAuthToken } from "@/lib/auth";
 
 interface Resume {
@@ -50,8 +43,8 @@ export default function ResumesPage() {
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [viewingResume, setViewingResume] = useState<Resume | null>(null);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchResumes();
@@ -60,17 +53,29 @@ export default function ResumesPage() {
   const fetchResumes = async () => {
     try {
       const token = getAuthToken();
+      if (!token) {
+        setError("Authentication token not found. Please log in again.");
+        return;
+      }
+
       const response = await fetch("http://localhost:5000/api/resumes", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
+
       if (response.ok) {
         const data = await response.json();
         setResumes(data);
+      } else if (response.status === 401) {
+        setError("Session expired. Please log in again.");
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.message || "Failed to fetch resumes");
       }
     } catch (error) {
-      setError("Failed to fetch resumes");
+      console.error("Fetch resumes error:", error);
+      setError("Network error. Please check your connection.");
     } finally {
       setLoading(false);
     }
@@ -79,51 +84,112 @@ export default function ResumesPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      if (file.type === "application/pdf" || file.type.includes("word")) {
+
+      // More comprehensive file type validation
+      const allowedTypes = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ];
+
+      const allowedExtensions = ["pdf", "doc", "docx"];
+      const fileExtension = file.name.split(".").pop()?.toLowerCase();
+
+      if (
+        allowedTypes.includes(file.type) ||
+        (fileExtension && allowedExtensions.includes(fileExtension))
+      ) {
+        // Check file size (limit to 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          setError("File size must be less than 10MB");
+          setSelectedFile(null);
+          return;
+        }
+
         setSelectedFile(file);
         setError("");
+        console.log("File selected:", file.name, file.type, file.size);
       } else {
-        setError("Please select a PDF or Word document");
+        setError("Please select a PDF or Word document (.pdf, .doc, .docx)");
         setSelectedFile(null);
       }
     }
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile) {
+      setError("Please select a file to upload");
+      return;
+    }
+
     setUploading(true);
     setError("");
-    setSuccess("");
+
     try {
+      const token = getAuthToken();
+      if (!token) {
+        setError("Authentication token not found. Please log in again.");
+        setUploading(false);
+        return;
+      }
+
+      console.log("Starting upload for file:", selectedFile.name);
+
       const formData = new FormData();
       formData.append("resume", selectedFile);
-      const token = getAuthToken();
+
+      // Log FormData contents (for debugging)
+      for (let [key, value] of formData.entries()) {
+        console.log("FormData entry:", key, value);
+      }
+
       const response = await fetch("http://localhost:5000/api/resumes/upload", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
+          // Note: Do NOT set Content-Type header for FormData
         },
         body: formData,
       });
-      const data = await response.json();
+
+      console.log("Upload response status:", response.status);
+
+      let data;
+      try {
+        data = await response.json();
+        console.log("Upload response data:", data);
+      } catch (parseError) {
+        console.error("Failed to parse response JSON:", parseError);
+        throw new Error("Invalid response from server");
+      }
+
       if (response.ok) {
-        setSuccess("Resume uploaded successfully!");
         setSelectedFile(null);
-        fetchResumes();
-        // Clear both file inputs
-        const fileInput1 = document.getElementById(
+        setUploadDialogOpen(false);
+
+        // Clear the file input
+        const fileInput = document.getElementById(
           "resume-file"
         ) as HTMLInputElement;
-        const fileInput2 = document.getElementById(
-          "resume-file-empty"
-        ) as HTMLInputElement;
-        if (fileInput1) fileInput1.value = "";
-        if (fileInput2) fileInput2.value = "";
+        if (fileInput) fileInput.value = "";
+
+        // Refresh the resumes list
+        await fetchResumes();
       } else {
-        setError(data.message || "Upload failed");
+        console.error("Upload failed:", response.status, data);
+        if (response.status === 401) {
+          setError("Session expired. Please log in again.");
+        } else {
+          setError(
+            data.message || data.error || `Upload failed (${response.status})`
+          );
+        }
       }
-    } catch (error) {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      console.error("Upload error:", err);
+      setError(
+        err instanceof Error ? err.message : "Network error. Please try again."
+      );
     } finally {
       setUploading(false);
     }
@@ -131,8 +197,14 @@ export default function ResumesPage() {
 
   const handleDelete = async (resumeId: string) => {
     if (!confirm("Are you sure you want to delete this resume?")) return;
+
     try {
       const token = getAuthToken();
+      if (!token) {
+        setError("Authentication token not found. Please log in again.");
+        return;
+      }
+
       const response = await fetch(
         `http://localhost:5000/api/resumes/${resumeId}`,
         {
@@ -142,13 +214,17 @@ export default function ResumesPage() {
           },
         }
       );
+
       if (response.ok) {
-        setSuccess("Resume deleted successfully!");
         fetchResumes();
+      } else if (response.status === 401) {
+        setError("Session expired. Please log in again.");
       } else {
-        setError("Failed to delete resume");
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.message || "Failed to delete resume");
       }
     } catch (error) {
+      console.error("Delete error:", error);
       setError("Network error. Please try again.");
     }
   };
@@ -167,7 +243,7 @@ export default function ResumesPage() {
   }: {
     triggerButton: React.ReactNode;
   }) => (
-    <Dialog>
+    <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
       <DialogTrigger asChild>{triggerButton}</DialogTrigger>
       <DialogContent className="w-[95vw] max-w-md mx-auto">
         <DialogHeader>
@@ -179,17 +255,6 @@ export default function ResumesPage() {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription className="text-sm">{error}</AlertDescription>
-            </Alert>
-          )}
-          {success && (
-            <Alert>
-              <AlertDescription className="text-sm">{success}</AlertDescription>
-            </Alert>
-          )}
-
           <div className="space-y-2">
             <Label htmlFor="resume-file" className="text-sm">
               Resume File
@@ -197,22 +262,40 @@ export default function ResumesPage() {
             <Input
               id="resume-file"
               type="file"
-              accept=".pdf,.doc,.docx"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               onChange={handleFileChange}
               className="bg-input border-border text-sm"
+              disabled={uploading}
             />
             <p className="text-xs text-muted-foreground">
-              Supported formats: PDF, DOC, DOCX
+              Supported formats: PDF, DOC, DOCX (Max size: 10MB)
             </p>
           </div>
 
-          <Button
-            onClick={handleUpload}
-            disabled={!selectedFile || uploading}
-            className="w-full text-sm"
-          >
-            {uploading ? "Uploading..." : "Upload Resume"}
-          </Button>
+          {selectedFile && (
+            <div className="text-sm text-muted-foreground">
+              Selected: {selectedFile.name} (
+              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Button
+              onClick={handleUpload}
+              disabled={!selectedFile || uploading}
+              className="flex-1 text-sm"
+            >
+              {uploading ? "Uploading..." : "Upload Resume"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setUploadDialogOpen(false)}
+              disabled={uploading}
+              className="text-sm"
+            >
+              Cancel
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -413,22 +496,6 @@ export default function ResumesPage() {
             </div>
           </DialogContent>
         </Dialog>
-      )}
-
-      {/* Success/Error Messages */}
-      {(success || error) && (
-        <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-          {success && (
-            <Alert className="mb-2">
-              <AlertDescription className="text-sm">{success}</AlertDescription>
-            </Alert>
-          )}
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription className="text-sm">{error}</AlertDescription>
-            </Alert>
-          )}
-        </div>
       )}
     </div>
   );

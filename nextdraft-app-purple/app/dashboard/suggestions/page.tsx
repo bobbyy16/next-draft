@@ -70,9 +70,7 @@ export default function SuggestionsPage() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  // No need for viewingResume here
 
-  // Helper to get file type (copied from resumes/page.tsx)
   const getFileType = (fileName: string, fileUrl: string) => {
     const extension = fileName.split(".").pop()?.toLowerCase();
     if (extension === "pdf" || fileUrl?.includes(".pdf")) {
