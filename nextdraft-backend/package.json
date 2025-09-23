@@ -1,8 +1,9 @@
 {
   "name": "nextdraft-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Backend for NextDraft - AI Resume Optimizer",
+  "main": "server.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
@@ -10,24 +11,29 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "aws-sdk": "^2.1692.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.2",
-    "express": "^5.1.0",
-    "helmet": "^8.1.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.10.0",
-    "mongoose": "^8.18.1",
-    "morgan": "^1.10.1",
-    "multer": "^2.0.2",
+    "mongoose": "^8.6.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
     "openai": "^5.20.3",
-    "openapi": "^1.0.1",
     "pdf-parse": "^1.1.1",
     "pdfkit": "^0.17.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.x",
+    "npm": ">=9.x"
   }
 }
