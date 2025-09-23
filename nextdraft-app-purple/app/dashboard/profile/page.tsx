@@ -395,17 +395,18 @@ export default function ProfilePage() {
                         <SelectValue placeholder="Select your experience level" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Entry">Entry Level</SelectItem>
+                        <SelectItem value="Intern">Intern</SelectItem>
                         <SelectItem value="Junior">
                           Junior (1-3 years)
                         </SelectItem>
-                        <SelectItem value="Mid">
-                          Mid Level (3-7 years)
+                        <SelectItem value="Mid-level">
+                          Mid-Level (3-7 years)
                         </SelectItem>
                         <SelectItem value="Senior">
                           Senior (7+ years)
                         </SelectItem>
-                        <SelectItem value="Executive">Executive</SelectItem>
+                        <SelectItem value="Lead">Lead</SelectItem>
+                        <SelectItem value="Manager">Manager</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
