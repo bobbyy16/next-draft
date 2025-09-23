@@ -23,40 +23,13 @@ import {
   Zap,
   FileText,
   Briefcase,
-  Download,
-  CheckCircle,
   AlertCircle,
   Clock,
   Sparkles,
   RefreshCw,
-  Copy,
-  Undo,
+  CheckCircle,
 } from "lucide-react";
 import { getAuthToken } from "@/lib/auth";
-import jsPDF from "jspdf";
-import {
-  PDFViewer,
-  Document,
-  Page,
-  Text,
-  StyleSheet,
-} from "@react-pdf/renderer";
-
-// PDF styles for react-pdf
-const pdfStyles = StyleSheet.create({
-  page: { padding: 24 },
-  text: { fontSize: 12, color: "#222" },
-});
-
-function ResumePDF({ content }: { content: string }) {
-  return (
-    <Document>
-      <Page size="A4" style={pdfStyles.page}>
-        <Text style={pdfStyles.text}>{content}</Text>
-      </Page>
-    </Document>
-  );
-}
 
 interface Resume {
   _id: string;
@@ -77,7 +50,6 @@ interface Suggestion {
   suggestedText: string;
   explanation: string;
   priority: "high" | "medium" | "low";
-  applied: boolean;
 }
 
 interface SuggestionData {
@@ -95,15 +67,19 @@ export default function SuggestionsPage() {
   const [selectedResumeId, setSelectedResumeId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState("");
   const [suggestions, setSuggestions] = useState<SuggestionData | null>(null);
-  const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [appliedSuggestions, setAppliedSuggestions] = useState<Set<number>>(
-    new Set()
-  );
-  const [resumeContent, setResumeContent] = useState<string>("");
+  // No need for viewingResume here
 
+  // Helper to get file type (copied from resumes/page.tsx)
+  const getFileType = (fileName: string, fileUrl: string) => {
+    const extension = fileName.split(".").pop()?.toLowerCase();
+    if (extension === "pdf" || fileUrl?.includes(".pdf")) {
+      return "pdf";
+    }
+    return "document";
+  };
   useEffect(() => {
     fetchResumes();
     fetchJobDescriptions();
@@ -181,7 +157,6 @@ export default function SuggestionsPage() {
       if (response.ok) {
         setSuggestions(data.suggestion);
         setSuccess("AI suggestions generated successfully!");
-        setAppliedSuggestions(new Set());
       } else {
         setError(data.message || "Failed to generate suggestions");
       }
@@ -190,39 +165,6 @@ export default function SuggestionsPage() {
     } finally {
       setGenerating(false);
     }
-  };
-
-  const applySuggestion = (index: number) => {
-    if (appliedSuggestions.has(index)) {
-      // Unapply the suggestion
-      setAppliedSuggestions((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(index);
-        return newSet;
-      });
-    } else {
-      // Apply the suggestion
-      setAppliedSuggestions((prev) => new Set([...prev, index]));
-    }
-    setSuccess("Suggestion updated! Preview refreshed.");
-    setTimeout(() => setSuccess(""), 2000);
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setSuccess("Copied to clipboard!");
-    setTimeout(() => setSuccess(""), 2000);
-  };
-
-  const downloadOptimizedResume = () => {
-    if (!resumeContent) return;
-    const doc = new jsPDF();
-    const lines = doc.splitTextToSize(resumeContent, 180);
-    doc.setFontSize(12);
-    doc.text(lines, 10, 10);
-    doc.save(`optimized_${selectedResume?.fileName || "resume"}.pdf`);
-    setSuccess("PDF downloaded!");
-    setTimeout(() => setSuccess(""), 2000);
   };
 
   const getPriorityColor = (priority: string) => {
@@ -254,29 +196,6 @@ export default function SuggestionsPage() {
   const selectedResume = resumes.find((r) => r._id === selectedResumeId);
   const selectedJob = jobDescriptions.find((j) => j._id === selectedJobId);
 
-  // Update resume content when resume or suggestions change
-  useEffect(() => {
-    if (selectedResume) {
-      let content = selectedResume.parsedText;
-      if (suggestions && suggestions.suggestions.length > 0) {
-        suggestions.suggestions.forEach((suggestion, idx) => {
-          if (appliedSuggestions.has(idx)) {
-            content = content.replace(
-              suggestion.originalText,
-              suggestion.suggestedText
-            );
-          }
-        });
-      }
-      setResumeContent(content);
-    } else {
-      setResumeContent("");
-    }
-  }, [selectedResume, suggestions, appliedSuggestions]);
-
-  const appliedCount = appliedSuggestions.size;
-  const totalSuggestions = suggestions?.suggestions.length || 0;
-
   return (
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 lg:p-8">
       <div className="mb-4 sm:mb-6">
@@ -284,8 +203,8 @@ export default function SuggestionsPage() {
           Resume Optimizer
         </h1>
         <p className="text-muted-foreground text-base sm:text-lg">
-          Apply AI-powered suggestions and instantly preview your optimized
-          resume as a PDF.
+          Get AI-powered suggestions to optimize your resume for specific job
+          descriptions.
         </p>
       </div>
 
@@ -387,11 +306,79 @@ export default function SuggestionsPage() {
         </CardContent>
       </Card>
 
-      {/* Step 2: Review Suggestions & Resume */}
-      {suggestions && (
-        <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 lg:gap-6">
-          {/* AI Suggestions - Full width on mobile, left column on desktop */}
-          <div className="lg:col-span-4 xl:col-span-3">
+      {suggestions && selectedResume && selectedJob && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Resume Display */}
+          <div className="lg:col-span-1">
+            <Card className="border-border bg-card h-full">
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                  <span>Resume</span>
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm truncate">
+                  {selectedResume.fileName}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 pt-0">
+                {/* Display PDF or fallback for other formats */}
+                {selectedResume.fileUrl &&
+                getFileType(selectedResume.fileName, selectedResume.fileUrl) ===
+                  "pdf" ? (
+                  <div className="w-full h-[50vh] sm:h-[60vh] md:h-[70vh] border rounded-lg overflow-hidden">
+                    <iframe
+                      src={selectedResume.fileUrl}
+                      className="w-full h-full"
+                      title={`Resume: ${selectedResume.fileName}`}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <Alert>
+                      <AlertDescription>
+                        This document format cannot be previewed inline. Open or
+                        download the file from your resume list.
+                      </AlertDescription>
+                    </Alert>
+                    <div className="bg-muted/30 p-4 rounded-lg">
+                      <h4 className="font-semibold mb-2">Parsed Content:</h4>
+                      <div className="text-sm text-foreground whitespace-pre-wrap max-h-[40vh] sm:max-h-[60vh] overflow-y-auto">
+                        {selectedResume.parsedText || "No content available"}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Job Description Display */}
+          <div className="lg:col-span-1">
+            <Card className="border-border bg-card h-full">
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                  <span>Job Description</span>
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  <div className="truncate">{selectedJob.roleTitle}</div>
+                  <div className="truncate text-muted-foreground">
+                    at {selectedJob.companyName}
+                  </div>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 pt-0">
+                <div className="bg-muted/30 p-3 sm:p-4 rounded-lg max-h-[500px] overflow-y-auto">
+                  <div className="text-xs sm:text-sm text-foreground whitespace-pre-wrap break-words">
+                    {selectedJob.parsedText}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* AI Suggestions Display */}
+          <div className="lg:col-span-1">
             <Card className="border-border bg-card h-full">
               <CardHeader className="p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-2">
@@ -399,7 +386,7 @@ export default function SuggestionsPage() {
                     AI Suggestions
                   </Badge>
                   <Badge variant="outline" className="text-xs">
-                    {appliedCount}/{totalSuggestions} Applied
+                    Score: {suggestions.overallScore}%
                   </Badge>
                 </div>
                 <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
@@ -407,8 +394,7 @@ export default function SuggestionsPage() {
                   <span>Optimization</span>
                 </CardTitle>
                 <CardDescription className="text-xs sm:text-sm">
-                  {suggestions.suggestions.length} suggestions • Score:{" "}
-                  {suggestions.overallScore}%
+                  {suggestions.suggestions.length} suggestions generated
                 </CardDescription>
                 <Progress
                   value={suggestions.overallScore}
@@ -416,15 +402,11 @@ export default function SuggestionsPage() {
                 />
               </CardHeader>
               <CardContent className="p-4 sm:p-6 pt-0">
-                <div className="space-y-3 sm:space-y-4 max-h-[400px] sm:max-h-[500px] lg:max-h-[600px] overflow-y-auto">
+                <div className="space-y-3 sm:space-y-4 max-h-[500px] overflow-y-auto">
                   {suggestions.suggestions.map((suggestion, index) => (
                     <div
                       key={index}
-                      className={`border rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3 transition-colors ${
-                        appliedSuggestions.has(index)
-                          ? "border-green-500/50 bg-green-500/5"
-                          : "border-border"
-                      }`}
+                      className="border rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3 border-border"
                     >
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <Badge
@@ -467,137 +449,8 @@ export default function SuggestionsPage() {
                       <p className="text-xs text-muted-foreground leading-relaxed">
                         {suggestion.explanation}
                       </p>
-
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          onClick={() => applySuggestion(index)}
-                          className="flex-1 h-8 text-xs"
-                          variant={
-                            appliedSuggestions.has(index)
-                              ? "secondary"
-                              : "default"
-                          }
-                        >
-                          {appliedSuggestions.has(index) ? (
-                            <>
-                              <Undo className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                              <span className="hidden sm:inline">Undo</span>
-                              <span className="sm:hidden">↶</span>
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                              <span>Apply</span>
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            copyToClipboard(suggestion.suggestedText)
-                          }
-                          className="h-8 px-2 sm:px-3"
-                        >
-                          <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
-                        </Button>
-                      </div>
                     </div>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Resume Preview - Full width on mobile, middle column on desktop */}
-          <div className="lg:col-span-5 xl:col-span-6">
-            <Card className="border-border bg-card h-full">
-              <CardHeader className="p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                  <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
-                    Live Preview
-                  </Badge>
-                  <Button
-                    size="sm"
-                    onClick={downloadOptimizedResume}
-                    className="h-8 text-xs"
-                  >
-                    <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                    <span className="hidden sm:inline">Download PDF</span>
-                    <span className="sm:hidden">PDF</span>
-                  </Button>
-                </div>
-                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
-                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                  <span>Resume Preview</span>
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm truncate">
-                  {selectedResume?.fileName}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 sm:p-6 pt-0">
-                <div className="space-y-4">
-                  <div className="bg-muted/30 p-3 sm:p-4 rounded-lg max-h-[300px] sm:max-h-[350px] lg:max-h-[400px] overflow-y-auto">
-                    <div className="text-xs sm:text-sm text-foreground whitespace-pre-wrap break-words">
-                      {resumeContent?.substring(0, 1500)}
-                      {resumeContent && resumeContent.length > 1500 && (
-                        <span className="text-muted-foreground">
-                          ... [truncated for preview]
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="bg-muted/30 p-2 rounded-lg hidden sm:block">
-                    <div className="flex items-center justify-center h-48 sm:h-64 overflow-hidden">
-                      <PDFViewer
-                        width="100%"
-                        height="100%"
-                        showToolbar={false}
-                        className="max-w-[300px]"
-                      >
-                        <ResumePDF
-                          content={resumeContent || "No resume selected."}
-                        />
-                      </PDFViewer>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Job Description Preview - Full width on mobile, right column on desktop */}
-          <div className="lg:col-span-3">
-            <Card className="border-border bg-card h-full">
-              <CardHeader className="p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <Badge className="bg-blue-500/10 text-blue-700 border-blue-500/20 text-xs">
-                    Target Job
-                  </Badge>
-                </div>
-                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
-                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                  <span>Job Description</span>
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  <div className="truncate">{selectedJob?.roleTitle}</div>
-                  <div className="truncate text-muted-foreground">
-                    at {selectedJob?.companyName}
-                  </div>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 sm:p-6 pt-0">
-                <div className="bg-muted/30 p-3 sm:p-4 rounded-lg max-h-[300px] sm:max-h-[400px] lg:max-h-[500px] overflow-y-auto">
-                  <div className="text-xs sm:text-sm text-foreground whitespace-pre-wrap break-words">
-                    {selectedJob?.parsedText?.substring(0, 1500)}
-                    {selectedJob?.parsedText &&
-                      selectedJob.parsedText.length > 1500 && (
-                        <span className="text-muted-foreground">
-                          ... [truncated for preview]
-                        </span>
-                      )}
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -605,7 +458,7 @@ export default function SuggestionsPage() {
         </div>
       )}
 
-      {/* Step 3: Get Started / Empty State */}
+      {/* Empty State */}
       {!suggestions && !generating && (
         <Card className="border-border bg-card">
           <CardContent className="flex flex-col items-center justify-center py-8 sm:py-12 px-4">
