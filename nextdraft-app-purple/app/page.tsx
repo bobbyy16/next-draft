@@ -120,13 +120,19 @@ export default function LandingPage() {
                 <ArrowRight className="ml-2 w-4 h-4 md:w-5 md:h-5" />
               </Button>
             </Link>
-            <Button
-              size="lg"
-              variant="outline"
-              className="text-base md:text-lg px-6 md:px-8 bg-transparent"
+            <Link
+              href="https://www.loom.com/share/99479d7c172643309bb0ca9002058f7c"
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              Watch Demo
-            </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="text-base md:text-lg px-6 md:px-8 bg-transparent"
+              >
+                Watch Demo
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
