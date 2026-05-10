@@ -105,13 +105,46 @@ export function BasicResumeTemplate({ parsedText }: TemplateProps) {
       }}
     >
       {/* Header */}
-      <header className="border-b-2 border-[#1a1a1a] pb-3">
+      <header className="border-b border-[#ccc] pb-3">
         <h1 className="m-0 text-[22px] font-bold tracking-tight text-[#0f172a]">
           {name || "Your Name"}
         </h1>
         {contactLines.length > 0 && (
           <p className="mt-1 text-[9.5px] tracking-wide text-[#555]">
-            {contactLines.join("  \u00b7  ")}
+            {contactLines
+              .join(" | ")
+              .split(/\s*[|•·]\s*/)
+              .filter(Boolean)
+              .map((item, i, arr) => {
+                const trimmed = item.trim();
+                let href: string | null = null;
+
+                if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                  href = `mailto:${trimmed}`;
+                } else if (/^[\+\(]?\d[\d\s\-\(\)]{6,}$/.test(trimmed)) {
+                  href = `tel:${trimmed.replace(/[\s\-\(\)]/g, "")}`;
+                } else if (/\.(com|org|net|io|dev|in|me)\b/i.test(trimmed)) {
+                  href = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+                }
+
+                return (
+                  <span key={i}>
+                    {href ? (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#555] underline underline-offset-2 hover:text-[#111]"
+                      >
+                        {trimmed}
+                      </a>
+                    ) : (
+                      trimmed
+                    )}
+                    {i < arr.length - 1 && <span className="mx-1.5 text-[#bbb]">·</span>}
+                  </span>
+                );
+              })}
           </p>
         )}
       </header>
