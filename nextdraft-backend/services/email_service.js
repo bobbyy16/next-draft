@@ -17,6 +17,7 @@ async function getTransporter() {
   if (_transporter) return _transporter;
 
   if (process.env.SMTP_HOST) {
+    console.log("[Email] Connecting via SMTP:", process.env.SMTP_HOST, "as", process.env.SMTP_USER);
     _transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT) || 587,
@@ -25,6 +26,8 @@ async function getTransporter() {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
+      // Force IPv4 – Render free tier doesn't support IPv6
+      family: 4,
     });
   } else {
     // Dev fallback – Ethereal test account
@@ -49,6 +52,7 @@ async function sendMail({ to, subject, html }) {
   try {
     const transporter = await getTransporter();
     const info = await transporter.sendMail({ from: from(), to, subject, html });
+    console.log("[Email] Sent to", to, "| Subject:", subject, "| ID:", info.messageId);
 
     // Log Ethereal preview URL in dev
     if (!process.env.SMTP_HOST) {
