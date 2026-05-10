@@ -363,7 +363,7 @@ export default function ResumesPage() {
           )}
 
           {/* Main layout: sidebar + editor + applied changes */}
-          <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)_300px]">
+          <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)_280px]">
             {/* Left sidebar */}
             <aside className="space-y-4">
               {/* Upload / Select */}
@@ -505,11 +505,21 @@ export default function ResumesPage() {
                   ) : (
                     suggestions.map((s, i) => (
                       <div key={`${s.type}-${i}`} className="rounded-md border border-slate-200 p-3">
-                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-teal-700">
-                          <Check className="h-3.5 w-3.5" />
-                          {s.priority} priority
+                        <div className="mb-1 flex items-center gap-2 text-xs font-semibold">
+                          <Check className={`h-3.5 w-3.5 ${s.applied ? "text-emerald-600" : "text-slate-400"}`} />
+                          <span className={s.priority === "high" ? "text-rose-600" : s.priority === "medium" ? "text-amber-600" : "text-teal-700"}>
+                            {s.priority}
+                          </span>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-slate-500">{s.type.replace(/_/g, " ")}</span>
                         </div>
-                        <p className="text-xs leading-5 text-slate-600">{s.explanation}</p>
+                        {s.originalText && (
+                          <p className="mt-1 text-[11px] leading-4 text-rose-600 line-through">{s.originalText.length > 120 ? s.originalText.slice(0, 120) + "…" : s.originalText}</p>
+                        )}
+                        {s.suggestedText && (
+                          <p className="mt-0.5 text-[11px] leading-4 font-medium text-emerald-700">{s.suggestedText.length > 120 ? s.suggestedText.slice(0, 120) + "…" : s.suggestedText}</p>
+                        )}
+                        <p className="mt-1 text-[11px] leading-4 text-slate-500">{s.explanation}</p>
                       </div>
                     ))
                   )}
