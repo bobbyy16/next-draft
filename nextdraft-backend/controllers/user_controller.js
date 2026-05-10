@@ -44,7 +44,7 @@ const registerUser = async (req, res) => {
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
     // Fire-and-forget welcome email
-    sendWelcomeEmail(user);
+    sendWelcomeEmail(user).catch((e) => console.error("[Email] Unhandled:", e));
 
     res.status(201).json(publicUser(user, token));
   } catch (error) {
@@ -174,7 +174,7 @@ const addPoints = async (req, res) => {
     await user.save();
 
     // Fire-and-forget points email
-    sendPointsAddedEmail(user, selected.points);
+    sendPointsAddedEmail(user, selected.points).catch((e) => console.error("[Email] Unhandled:", e));
 
     res.json(publicUser(user));
   } catch (error) {
@@ -206,7 +206,7 @@ const deleteUser = async (req, res) => {
     await User.findByIdAndDelete(req.params.id);
 
     // Fire-and-forget goodbye email
-    sendAccountDeletedEmail(email, name);
+    sendAccountDeletedEmail(email, name).catch((e) => console.error("[Email] Unhandled:", e));
 
     res.json({ message: "User removed successfully" });
   } catch (error) {
