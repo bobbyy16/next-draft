@@ -6,6 +6,7 @@ const {
   deleteResume,
   getAllResumes,
   getResumeById,
+  updateResume,
 } = require("../controllers/resume_controller");
 
 const router = express.Router();
@@ -18,6 +19,9 @@ router.get("/", protect, getAllResumes);
 
 // Get resume by ID
 router.get("/:id", protect, getResumeById);
+
+// Update resume parsed text (PATCH)
+router.patch("/:id", protect, updateResume);
 
 // Delete resume
 router.delete("/:id", protect, deleteResume);

@@ -9,6 +9,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  webpack: (config) => {
+    // pdfjs-dist uses canvas optionally — exclude from client bundle
+    config.resolve.alias.canvas = false;
+    return config;
+  },
 }
 
 export default nextConfig

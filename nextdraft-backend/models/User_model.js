@@ -15,27 +15,47 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, "Please add a password"],
   },
-  industry: {
-    type: String,
-    enum: [
-      "Software",
-      "Finance",
-      "Healthcare",
-      "Education",
-      "Marketing",
-      "Sales",
-      "Other",
-    ],
-    default: "Other",
-  },
-  experienceLevel: {
-    type: String,
-    enum: ["Intern", "Junior", "Mid-level", "Senior", "Lead", "Manager"],
-    default: "Intern",
-  },
   profileImage: {
     url: { type: String, default: "" },
     public_id: { type: String, default: "" },
+  },
+  pointsBalance: {
+    type: Number,
+    default: 50,
+  },
+  pointsLedger: [
+    {
+      type: {
+        type: String,
+        enum: ["credit", "debit"],
+        required: true,
+      },
+      points: {
+        type: Number,
+        required: true,
+      },
+      rupees: {
+        type: Number,
+        default: 0,
+      },
+      reason: {
+        type: String,
+        default: "",
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
+    },
+  ],
+  plan: {
+    type: String,
+    enum: ["freemium", "pro", "expert"],
+    default: "freemium",
+  },
+  planExpiresAt: {
+    type: Date,
+    default: null,
   },
   createdAt: {
     type: Date,

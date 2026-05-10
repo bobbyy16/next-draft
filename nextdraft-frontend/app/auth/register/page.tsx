@@ -1,263 +1,262 @@
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileText, Eye, EyeOff, Upload } from "lucide-react";
+  ArrowRight,
+  Check,
+  Eye,
+  EyeOff,
+  FileText,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API_BASE_URL } from "@/lib/utils";
+
+const promises = [
+  "Upload PDF or Word resumes",
+  "Run one-click AI optimization",
+  "Edit the basic ATS template",
+  "Export the final resume as PDF",
+];
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
-    industry: "",
-    experienceLevel: "",
   });
-  const [profileImage, setProfileImage] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const router = useRouter();
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const validTypes = ["image/jpeg", "image/jpg", "image/png"];
-
-      if (!validTypes.includes(file.type)) {
-        setError("Only JPEG, JPG, or PNG images are allowed.");
-        e.target.value = "";
-        return;
-      }
-
-      setProfileImage(file);
+  const validateField = (field: string, value: string): string => {
+    const v = value.trim();
+    switch (field) {
+      case "name":
+        if (!v) return "Full name is required.";
+        if (v.length < 2) return "Name must be at least 2 characters.";
+        return "";
+      case "email":
+        if (!v) return "Email is required.";
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Enter a valid email address.";
+        return "";
+      case "password":
+        if (!value) return "Password is required.";
+        if (value.length < 8) return "Must be at least 8 characters.";
+        if (!/[A-Z]/.test(value)) return "Must include an uppercase letter.";
+        if (!/[0-9]/.test(value)) return "Must include a number.";
+        if (!/[^A-Za-z0-9]/.test(value)) return "Must include a symbol (e.g. @#$!).";
+        return "";
+      default:
+        return "";
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((current) => ({ ...current, [field]: value }));
+    if (touched[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
+    }
+  };
+
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    setFieldErrors((prev) => ({ ...prev, [field]: validateField(field, formData[field as keyof typeof formData]) }));
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError("");
 
-    try {
-      const formDataToSend = new FormData();
-      Object.entries(formData).forEach(([key, value]) => {
-        formDataToSend.append(key, value);
-      });
-      if (profileImage) {
-        formDataToSend.append("profileImage", profileImage);
-      }
+    // Validate all fields
+    const errors: Record<string, string> = {};
+    (["name", "email", "password"] as const).forEach((field) => {
+      errors[field] = validateField(field, formData[field]);
+    });
+    setFieldErrors(errors);
+    setTouched({ name: true, email: true, password: true });
 
+    if (Object.values(errors).some(Boolean)) return;
+
+    setLoading(true);
+    try {
+      const payload = new FormData();
+      payload.append("name", formData.name.trim());
+      payload.append("email", formData.email.trim());
+      payload.append("password", formData.password);
       const response = await fetch(`${API_BASE_URL}/api/users/register`, {
         method: "POST",
-        body: formDataToSend,
+        body: payload,
       });
-
       const data = await response.json();
-
-      if (response.ok) {
-        // Store token in localStorage
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data));
-        router.push("/dashboard");
-      } else {
-        setError(data.message || "Registration failed");
-      }
+      if (!response.ok) throw new Error(data.message || "Registration failed");
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data));
+      router.push("/dashboard/resumes");
     } catch (err) {
-      setError("Network error. Please try again.");
+      setError(err instanceof Error ? err.message : "Network error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  const inputClass = (field: string) =>
+    `h-11 w-full rounded-md border bg-white px-3 text-sm outline-none ${
+      fieldErrors[field]
+        ? "border-rose-400 focus:border-rose-500"
+        : "border-slate-300 focus:border-teal-700"
+    }`;
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="flex items-center justify-center space-x-2 mb-8">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <FileText className="w-6 h-6 text-primary-foreground" />
-          </div>
-          <span className="text-2xl font-bold text-foreground">NextDraft</span>
-        </div>
-
-        <Card className="border-border bg-card">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Create Account</CardTitle>
-            <CardDescription>
-              Join NextDraft to start optimizing your resume with AI
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Enter your full name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  required
-                  className="bg-input border-border"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  required
-                  className="bg-input border-border"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Create a password"
-                    value={formData.password}
-                    onChange={(e) =>
-                      handleInputChange("password", e.target.value)
-                    }
-                    required
-                    className="bg-input border-border pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="industry">Industry</Label>
-                <Select
-                  value={formData.industry}
-                  onValueChange={(value) =>
-                    handleInputChange("industry", value)
-                  }
-                >
-                  <SelectTrigger className="bg-input border-border">
-                    <SelectValue placeholder="Select your industry" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Software">Software</SelectItem>
-                    <SelectItem value="Finance">Finance</SelectItem>
-                    <SelectItem value="Healthcare">Healthcare</SelectItem>
-                    <SelectItem value="Marketing">Marketing</SelectItem>
-                    <SelectItem value="Sales">Sales</SelectItem>
-                    <SelectItem value="Education">Education</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="experience">Experience Level</Label>
-                <Select
-                  value={formData.experienceLevel}
-                  onValueChange={(value) =>
-                    handleInputChange("experienceLevel", value)
-                  }
-                >
-                  <SelectTrigger className="bg-input border-border">
-                    <SelectValue placeholder="Select your experience level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Intern">Intern</SelectItem>
-                    <SelectItem value="Junior">Junior (1-3 years)</SelectItem>
-                    <SelectItem value="Mid-level">
-                      Mid-Level (3-7 years)
-                    </SelectItem>
-                    <SelectItem value="Senior">Senior (7+ years)</SelectItem>
-                    <SelectItem value="Lead">Lead</SelectItem>
-                    <SelectItem value="Manager">Manager</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="profileImage">Profile Image (Optional)</Label>
-                <div className="flex items-center space-x-2">
-                  <Input
-                    id="profileImage"
-                    type="file"
-                    accept=".jpg,.jpeg,.png"
-                    onChange={handleImageChange}
-                    className="bg-input border-border"
-                  />
-
-                  <Upload className="w-4 h-4 text-muted-foreground" />
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Creating Account..." : "Create Account"}
-              </Button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <Link
-                  href="/auth/login"
-                  className="text-primary hover:underline"
-                >
-                  Sign in
-                </Link>
-              </p>
+    <main className="grid min-h-screen bg-slate-100 text-slate-950 lg:grid-cols-[520px_minmax(0,1fr)]">
+      <section className="flex items-center justify-center p-4 sm:p-6 lg:p-10">
+        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+          <Link href="/" className="mb-8 flex w-fit items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-950 text-white">
+              <FileText className="h-5 w-5" />
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+            <div>
+              <div className="text-base font-semibold">NextDraft</div>
+              <div className="text-xs text-slate-500">ATS resume editor</div>
+            </div>
+          </Link>
+
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold tracking-normal">Create your account</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Start with the focused one-click resume optimizer.
+            </p>
+          </div>
+
+          {error && (
+            <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <div>
+              <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-slate-700">
+                Full name
+              </label>
+              <input
+                id="name"
+                type="text"
+                value={formData.name}
+                onChange={(e) => handleInputChange("name", e.target.value)}
+                onBlur={() => handleBlur("name")}
+                placeholder="Alex Morgan"
+                className={inputClass("name")}
+              />
+              {fieldErrors.name && <p className="mt-1 text-xs text-rose-600">{fieldErrors.name}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleInputChange("email", e.target.value)}
+                onBlur={() => handleBlur("email")}
+                placeholder="you@example.com"
+                className={inputClass("email")}
+              />
+              {fieldErrors.email && <p className="mt-1 text-xs text-rose-600">{fieldErrors.email}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => handleInputChange("password", e.target.value)}
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => { handleBlur("password"); setPasswordFocused(false); }}
+                  placeholder="Minimum 8 characters"
+                  className={`${inputClass("password")} pr-10`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 rounded-md p-1.5 text-slate-500 -translate-y-1/2 hover:bg-slate-100"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {(passwordFocused || formData.password.length > 0) && (
+                <ul className="mt-2 space-y-1">
+                {[
+                  { pass: formData.password.length >= 8, label: "At least 8 characters" },
+                  { pass: /[A-Z]/.test(formData.password), label: "One uppercase letter" },
+                  { pass: /[0-9]/.test(formData.password), label: "One number" },
+                  { pass: /[^A-Za-z0-9]/.test(formData.password), label: "One symbol (@#$! etc.)" },
+                ].map(({ pass, label }) => (
+                  <li key={label} className={`flex items-center gap-1.5 text-xs ${pass ? "text-emerald-600" : "text-slate-400"}`}>
+                    {pass ? <Check className="h-3.5 w-3.5" /> : <span className="inline-block h-3.5 w-3.5 rounded-full border border-current" />}
+                    {label}
+                  </li>
+                ))}
+                </ul>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+              Create account
+            </button>
+          </form>
+
+          <p className="mt-5 text-center text-sm text-slate-600">
+            Already have an account?{" "}
+            <Link href="/auth/login" className="font-semibold text-teal-700 hover:text-teal-800">
+              Log in
+            </Link>
+          </p>
+        </div>
+      </section>
+
+      <section className="hidden bg-white p-10 lg:flex lg:flex-col lg:justify-between">
+        <div />
+        <div className="max-w-2xl">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">
+            <Sparkles className="h-3.5 w-3.5" />
+            Built around one job application
+          </div>
+          <h2 className="text-5xl font-semibold tracking-normal">
+            Get from raw resume to cleaner ATS version in minutes.
+          </h2>
+          <p className="mt-5 max-w-xl text-base leading-7 text-slate-600">
+            The app keeps the workflow simple: one resume, one job description, one AI apply button, one basic resume template.
+          </p>
+          <div className="mt-8 grid gap-3 sm:grid-cols-2">
+            {promises.map((promise) => (
+              <div key={promise} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <Check className="h-4 w-4 shrink-0 text-teal-700" />
+                <span className="text-sm font-semibold text-slate-700">{promise}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="text-sm text-slate-500">No prompt writing. No template marketplace. Just the resume workflow.</p>
+      </section>
+    </main>
   );
 }

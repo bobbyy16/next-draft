@@ -1,346 +1,268 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ArrowRight, FileText, Zap, Target, Menu, X } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  ArrowRight,
+  Check,
+  FileText,
+  Gauge,
+  Menu,
+  MousePointerClick,
+  ShieldCheck,
+  Sparkles,
+  Upload,
+  X,
+} from "lucide-react";
 import { getUser } from "@/lib/auth";
+
+const workflow = [
+  {
+    icon: Upload,
+    title: "Upload one resume",
+    text: "Use your current PDF or Word resume. NextDraft extracts the content for editing.",
+  },
+  {
+    icon: Sparkles,
+    title: "Paste one job description",
+    text: "The optimizer compares your resume with the role and finds safe wording upgrades.",
+  },
+  {
+    icon: MousePointerClick,
+    title: "Apply AI changes",
+    text: "One click applies exact-text improvements and saves the updated resume.",
+  },
+  {
+    icon: Gauge,
+    title: "Edit and export",
+    text: "Review the ATS score, edit the basic template, and export a clean PDF.",
+  },
+];
+
+const benefits = [
+  "One basic ATS-friendly resume template",
+  "AI changes applied in one click",
+  "Manual text editor for final control",
+  "ATS score after every optimization",
+  "No prompt writing or template switching",
+  "PDF export from the live preview",
+];
+
+const sampleResume = `ALEX MORGAN
+alex@email.com | Bengaluru, IN | linkedin.com/in/alexmorgan
+
+SUMMARY
+Operations analyst improving onboarding, reporting, and customer workflows.
+
+EXPERIENCE
+Operations Analyst | BrightDesk | 2022 - Present
+- Improved team reporting and reduced manual follow-up work.
+- Coordinated customer escalations across support and product teams.
+
+SKILLS
+Reporting, CRM, process improvement, customer operations`;
 
 export default function LandingPage() {
   const [user, setUser] = useState<import("@/lib/auth").User | null>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     setUser(getUser());
   }, []);
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <FileText className="w-5 h-5 text-primary-foreground" />
+    <main className="min-h-screen bg-slate-100 text-slate-950">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 lg:px-6">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-950 text-white">
+              <FileText className="h-5 w-5" />
             </div>
-            <span className="text-xl font-bold text-foreground">NextDraft</span>
-          </div>
+            <div>
+              <div className="text-base font-semibold tracking-normal">NextDraft</div>
+              <div className="text-xs text-slate-500">ATS resume editor</div>
+            </div>
+          </Link>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden">
-            <button
-              onClick={toggleMenu}
-              className="p-2 rounded-md text-foreground focus:outline-none"
-            >
-              {isMenuOpen ? (
-                <X className="h-6 w-6" />
-              ) : (
-                <Menu className="h-6 w-6" />
-              )}
-            </button>
-          </div>
-
-          {/* Desktop navigation */}
-          <div className="hidden md:flex items-center space-x-4">
+          <nav className="hidden items-center gap-1 md:flex">
+            <Link href="#workflow" className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
+              Workflow
+            </Link>
+            <Link href="#features" className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
+              Features
+            </Link>
+            <Link href="#preview" className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
+              Preview
+            </Link>
             {user ? (
               <Link href="/dashboard">
-                <Button>Dashboard</Button>
+                <button className="ml-2 inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800">
+                  Dashboard <ArrowRight className="h-4 w-4" />
+                </button>
               </Link>
             ) : (
               <>
-                <Link href="/auth/login">
-                  <Button variant="ghost">Sign In</Button>
+                <Link href="/auth/login" className="ml-2 rounded-md px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                  Log in
                 </Link>
                 <Link href="/auth/register">
-                  <Button>Get Started</Button>
+                  <button className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800">
+                    Start free <ArrowRight className="h-4 w-4" />
+                  </button>
                 </Link>
               </>
             )}
-          </div>
+          </nav>
+
+          <button
+            onClick={() => setMenuOpen((open) => !open)}
+            className="rounded-md border border-slate-200 bg-white p-2 md:hidden"
+          >
+            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
 
-        {/* Mobile navigation */}
-        {isMenuOpen && (
-          <div className="md:hidden border-t border-border bg-card">
-            <div className="container mx-auto px-4 py-4 flex flex-col space-y-4">
-              {user ? (
-                <Link href="/dashboard" onClick={() => setIsMenuOpen(false)}>
-                  <Button className="w-full">Dashboard</Button>
-                </Link>
-              ) : (
-                <>
-                  <Link href="/auth/login" onClick={() => setIsMenuOpen(false)}>
-                    <Button variant="ghost" className="w-full">
-                      Sign In
-                    </Button>
-                  </Link>
-                  <Link
-                    href="/auth/register"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <Button className="w-full">Get Started</Button>
-                  </Link>
-                </>
-              )}
+        {menuOpen && (
+          <div className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
+            <div className="flex flex-col gap-1">
+              <Link onClick={() => setMenuOpen(false)} href="#workflow" className="rounded-md px-3 py-2 text-sm font-medium text-slate-700">
+                Workflow
+              </Link>
+              <Link onClick={() => setMenuOpen(false)} href="#features" className="rounded-md px-3 py-2 text-sm font-medium text-slate-700">
+                Features
+              </Link>
+              <Link onClick={() => setMenuOpen(false)} href={user ? "/dashboard" : "/auth/register"} className="rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white">
+                {user ? "Dashboard" : "Start free"}
+              </Link>
             </div>
           </div>
         )}
-      </nav>
+      </header>
 
-      {/* Hero Section */}
-      <section className="py-12 md:py-20 px-4">
-        <div className="container mx-auto text-center">
-          <Badge className="mb-4 md:mb-6 bg-primary/10 text-primary border-primary/20 text-sm md:text-base">
-            AI-Powered Resume Optimization
-          </Badge>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-4 md:mb-6 text-balance">
-            Transform Your Resume with{" "}
-            <span className="text-primary">AI Intelligence</span>
+      <section className="mx-auto grid max-w-7xl gap-8 px-4 py-12 lg:grid-cols-[minmax(0,1fr)_520px] lg:px-6 lg:py-20">
+        <div className="flex flex-col justify-center">
+          <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">
+            <Sparkles className="h-3.5 w-3.5" />
+            One-click AI resume changes
+          </div>
+          <h1 className="max-w-4xl text-4xl font-semibold tracking-normal text-slate-950 sm:text-5xl lg:text-6xl">
+            Build one ATS resume for the job you want.
           </h1>
-          <p className="text-lg md:text-xl text-muted-foreground mb-6 md:mb-8 max-w-2xl mx-auto text-pretty">
-            Get personalized suggestions to optimize your resume for any job
-            description. Increase your chances of landing interviews with
-            AI-powered insights.
+          <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 lg:text-lg">
+            NextDraft is a focused resume optimizer. Upload your resume, paste a job description, let AI apply safe changes, then edit a clean basic template before exporting.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
-            <Link href="/auth/register">
-              <Button size="lg" className="text-base md:text-lg px-6 md:px-8">
-                Start Optimizing{" "}
-                <ArrowRight className="ml-2 w-4 h-4 md:w-5 md:h-5" />
-              </Button>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <Link href={user ? "/dashboard/resumes" : "/auth/register"}>
+              <button className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-slate-950 px-5 text-sm font-semibold text-white hover:bg-slate-800 sm:w-auto">
+                Optimize my resume <ArrowRight className="h-4 w-4" />
+              </button>
             </Link>
-            <Link
-              href="https://www.loom.com/share/99479d7c172643309bb0ca9002058f7c"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button
-                size="lg"
-                variant="outline"
-                className="text-base md:text-lg px-6 md:px-8 bg-transparent"
-              >
-                Watch Demo
-              </Button>
+            <Link href="/auth/login">
+              <button className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-800 hover:bg-slate-50 sm:w-auto">
+                Log in
+              </button>
             </Link>
           </div>
+          <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
+            {["No prompts", "One template", "ATS score"].map((item) => (
+              <div key={item} className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <Check className="h-4 w-4 text-teal-700" />
+                {item}
+              </div>
+            ))}
+          </div>
         </div>
-      </section>
 
-      {/* Features Section */}
-      <section className="py-12 md:py-20 px-4 bg-muted/30">
-        <div className="container mx-auto">
-          <div className="text-center mb-12 md:mb-16">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Powerful Features for Job Seekers
-            </h2>
-            <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
-              Everything you need to create compelling resumes that get noticed
-              by recruiters and ATS systems.
+        <div id="preview" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-semibold">Live resume preview</div>
+            <div className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+              82 ATS
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <pre className="whitespace-pre-wrap font-mono text-[11px] leading-5 text-slate-700">
+              {sampleResume}
+            </pre>
+          </div>
+          <div className="mt-4 rounded-lg border border-teal-200 bg-teal-50 p-3">
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-teal-900">
+              <ShieldCheck className="h-4 w-4" />
+              Safe AI edit applied
+            </div>
+            <p className="text-xs leading-5 text-teal-800">
+              Reworded an existing operations bullet to include target keywords without inventing new experience.
             </p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                  <Zap className="w-6 h-6 text-primary" />
-                </div>
-                <CardTitle>AI-Powered Analysis</CardTitle>
-                <CardDescription>
-                  Advanced AI compares your resume against job descriptions to
-                  identify optimization opportunities.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                  <Target className="w-6 h-6 text-primary" />
-                </div>
-                <CardTitle>Targeted Suggestions</CardTitle>
-                <CardDescription>
-                  Get specific recommendations for keywords, skills, and content
-                  to match job requirements perfectly.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                  <FileText className="w-6 h-6 text-primary" />
-                </div>
-                <CardTitle>Instant PDF Export</CardTitle>
-                <CardDescription>
-                  Apply suggestions with one click and download your optimized
-                  resume as a professional PDF.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="py-12 md:py-20 px-4">
-        <div className="container mx-auto">
-          <div className="text-center mb-12 md:mb-16">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-4">
-              How NextDraft Works
-            </h2>
-            <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
-              Simple 3-step process to optimize your resume for any job
-              opportunity.
+      <section id="workflow" className="border-y border-slate-200 bg-white py-14">
+        <div className="mx-auto max-w-7xl px-4 lg:px-6">
+          <div className="mb-8 max-w-2xl">
+            <h2 className="text-2xl font-semibold tracking-normal">One workflow, no clutter</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              The product is intentionally narrow: optimize one resume against one job description and keep editing in one basic ATS template.
             </p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-8">
-            <div className="text-center">
-              <div className="w-12 h-12 md:w-16 md:h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6">
-                <span className="text-xl md:text-2xl font-bold text-primary-foreground">
-                  1
-                </span>
+          <div className="grid gap-4 md:grid-cols-4">
+            {workflow.map((item) => (
+              <div key={item.title} className="rounded-lg border border-slate-200 bg-white p-4">
+                <item.icon className="mb-5 h-5 w-5 text-teal-700" />
+                <h3 className="text-sm font-semibold">{item.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{item.text}</p>
               </div>
-              <h3 className="text-lg md:text-xl font-semibold text-foreground mb-3 md:mb-4">
-                Upload Your Resume
-              </h3>
-              <p className="text-muted-foreground text-sm md:text-base">
-                Upload your current resume in PDF or Word format. Our AI will
-                parse and analyze your content.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-12 h-12 md:w-16 md:h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6">
-                <span className="text-xl md:text-2xl font-bold text-primary-foreground">
-                  2
-                </span>
-              </div>
-              <h3 className="text-lg md:text-xl font-semibold text-foreground mb-3 md:mb-4">
-                Add Job Description
-              </h3>
-              <p className="text-muted-foreground text-sm md:text-base">
-                Paste the job description you're targeting. Our AI will identify
-                key requirements and keywords.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-12 h-12 md:w-16 md:h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6">
-                <span className="text-xl md:text-2xl font-bold text-primary-foreground">
-                  3
-                </span>
-              </div>
-              <h3 className="text-lg md:text-xl font-semibold text-foreground mb-3 md:mb-4">
-                Get AI Suggestions
-              </h3>
-              <p className="text-muted-foreground text-sm md:text-base">
-                Receive personalized suggestions and apply them with one click
-                to create your optimized resume.
-              </p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-12 md:py-20 px-4 bg-muted/30">
-        <div className="container mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 text-center">
-            <div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary mb-2">
-                10K+
+      <section id="features" className="mx-auto max-w-7xl px-4 py-14 lg:px-6">
+        <div className="grid gap-8 lg:grid-cols-[360px_minmax(0,1fr)]">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-normal">Built for people who just need the resume fixed.</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              No prompt engineering. No template marketplace. No separate suggestions page. The app does the change and lets you review it.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {benefits.map((benefit) => (
+              <div key={benefit} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4">
+                <Check className="h-4 w-4 shrink-0 text-teal-700" />
+                <span className="text-sm font-medium text-slate-700">{benefit}</span>
               </div>
-              <div className="text-muted-foreground text-sm md:text-base">
-                Resumes Optimized
-              </div>
-            </div>
-            <div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary mb-2">
-                85%
-              </div>
-              <div className="text-muted-foreground text-sm md:text-base">
-                Interview Rate Increase
-              </div>
-            </div>
-            <div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary mb-2">
-                500+
-              </div>
-              <div className="text-muted-foreground text-sm md:text-base">
-                Companies Supported
-              </div>
-            </div>
-            <div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary mb-2">
-                4.9/5
-              </div>
-              <div className="text-muted-foreground text-sm md:text-base">
-                User Rating
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-12 md:py-20 px-4">
-        <div className="container mx-auto text-center">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-4 md:mb-6">
-            Ready to Land Your Dream Job?
-          </h2>
-          <p className="text-base md:text-lg text-muted-foreground mb-6 md:mb-8 max-w-2xl mx-auto">
-            Join thousands of job seekers who have successfully optimized their
-            resumes with NextDraft.
-          </p>
-          {getUser() ? (
-            <Link href="/dashboard" className="mr-4">
-              <Button size="lg" className="text-base md:text-lg px-6 md:px-8">
-                Go to Dashboard{" "}
-                <ArrowRight className="ml-2 w-4 h-4 md:w-5 md:h-5" />
-              </Button>
+      <section className="mx-auto max-w-7xl px-4 pb-16 lg:px-6">
+        <div className="rounded-xl bg-slate-950 p-6 text-white lg:p-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-normal">Ready to optimize your first resume?</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                Create an account, upload a resume, paste the job description, and run the one-click AI optimizer.
+              </p>
+            </div>
+            <Link href={user ? "/dashboard/resumes" : "/auth/register"}>
+              <button className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-slate-950 hover:bg-slate-100 sm:w-auto">
+                Get started <ArrowRight className="h-4 w-4" />
+              </button>
             </Link>
-          ) : (
-            <Link href="/auth/register">
-              <Button size="lg" className="text-base md:text-lg px-6 md:px-8">
-                Get Started for Free{" "}
-                <ArrowRight className="ml-2 w-4 h-4 md:w-5 md:h-5" />
-              </Button>
-            </Link>
-          )}
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-card/50 py-8 md:py-12 px-4">
-        <div className="container mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center space-x-2 mb-4 md:mb-0">
-              <div className="w-6 h-6 md:w-8 md:h-8 bg-primary rounded-lg flex items-center justify-center">
-                <FileText className="w-4 h-4 md:w-5 md:h-5 text-primary-foreground" />
-              </div>
-              <span className="text-lg md:text-xl font-bold text-foreground">
-                NextDraft
-              </span>
-            </div>
-            <div className="text-muted-foreground text-sm md:text-base">
-              © {new Date().getFullYear()} NextDraft. All rights reserved.
-            </div>
+      <footer className="border-t border-slate-200 bg-white px-4 py-6 lg:px-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <div>NextDraft &#169; {new Date().getFullYear()}. Focused ATS resume optimization.</div>
+          <div className="flex gap-4">
+            <Link href="/auth/login" className="hover:text-slate-950">Login</Link>
+            <Link href="/auth/register" className="hover:text-slate-950">Register</Link>
           </div>
         </div>
       </footer>
-    </div>
+    </main>
   );
 }

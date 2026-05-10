@@ -1,15 +1,26 @@
+export type Plan = "freemium" | "pro" | "expert";
+
 export interface User {
   _id: string;
   name: string;
   email: string;
-  industry: string;
-  experienceLevel: string;
+  pointsBalance?: number;
+  pointsLedger?: Array<{
+    type: "credit" | "debit";
+    points: number;
+    rupees?: number;
+    reason?: string;
+    createdAt?: string;
+  }>;
+  plan: Plan;
+  planExpiresAt?: string | null;
   profileImage?: {
     url: string;
     public_id: string;
   };
   token?: string;
 }
+
 
 export const getAuthToken = (): string | null => {
   if (typeof window !== "undefined") {

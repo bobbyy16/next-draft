@@ -107,4 +107,26 @@ const deleteResume = async (req, res) => {
   }
 };
 
-module.exports = { uploadResume, getAllResumes, getResumeById, deleteResume };
+// -------------------- UPDATE RESUME PARSED TEXT --------------------
+const updateResume = async (req, res) => {
+  try {
+    const resume = await Resume.findById(req.params.id);
+    if (!resume) return res.status(404).json({ message: "Resume not found" });
+    if (resume.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const { parsedText, isEdited } = req.body;
+    if (parsedText !== undefined) resume.parsedText = parsedText;
+    if (isEdited !== undefined) resume.isEdited = isEdited;
+    resume.version += 1;
+    await resume.save();
+
+    res.status(200).json({ message: "Resume updated", resume });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Resume update failed" });
+  }
+};
+
+module.exports = { uploadResume, getAllResumes, getResumeById, deleteResume, updateResume };

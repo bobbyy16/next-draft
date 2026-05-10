@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
-export default function SuggestionsRedirectPage() {
+export default function ResumeEditorRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {

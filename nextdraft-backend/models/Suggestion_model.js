@@ -35,6 +35,18 @@ const suggestionSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  appliedCount: {
+    type: Number,
+    default: 0,
+  },
+  pointsSpent: {
+    type: Number,
+    default: 0,
+  },
+  jobTitle: {
+    type: String,
+    default: "",
+  },
   createdAt: {
     type: Date,
     default: Date.now,

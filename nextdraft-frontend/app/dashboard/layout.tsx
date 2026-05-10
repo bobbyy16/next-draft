@@ -2,50 +2,21 @@
 
 import type React from "react";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  FileText,
-  Home,
-  Briefcase,
-  Zap,
-  Settings,
-  LogOut,
-  Menu,
-  X,
-} from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Clock, FileText, LayoutDashboard, LogOut, Menu, User, X } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { getUser, logout, isAuthenticated, User } from "@/lib/auth";
+import { getUser, isAuthenticated, logout, User as AuthUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "Resumes", href: "/dashboard/resumes", icon: FileText },
-  {
-    name: "Job Descriptions",
-    href: "/dashboard/job-descriptions",
-    icon: Briefcase,
-  },
-  { name: "AI Suggestions", href: "/dashboard/suggestions", icon: Zap },
-  { name: "Profile", href: "/dashboard/profile", icon: Settings },
+  { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Resume Optimizer", href: "/dashboard/resumes", icon: FileText },
+  { name: "Activity", href: "/dashboard/activity", icon: Clock },
+  { name: "Profile", href: "/dashboard/profile", icon: User },
 ];
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [user, setUser] = useState<User | null>(null);
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -58,149 +29,99 @@ export default function DashboardLayout({
     setUser(getUser());
   }, [router]);
 
-  const handleLogout = () => {
-    logout();
-  };
-
-  const closeSidebar = () => setSidebarOpen(false);
-
   if (!user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4">
-            <FileText className="w-5 h-5 text-primary-foreground animate-pulse" />
-          </div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 text-slate-600">
+        <div className="text-sm">Loading workspace...</div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-4 left-4 z-50">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setSidebarOpen(true)}
-          className="bg-background border-border"
+  const sidebar = (
+    <div className="flex h-full flex-col bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <Link href="/dashboard" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-950 text-white">
+            <FileText className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-base font-semibold tracking-normal text-slate-950">NextDraft</div>
+            <div className="text-xs text-slate-500">ATS resume editor</div>
+          </div>
+        </Link>
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="rounded-md p-2 text-slate-500 hover:bg-slate-100 lg:hidden"
         >
-          <Menu className="h-4 w-4" />
-        </Button>
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
-      {/* Mobile overlay */}
+      <nav className="flex-1 space-y-1 px-3 py-4">
+        {navigation.map((item) => {
+          const active =
+            pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
+              <div
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium",
+                  active
+                    ? "bg-slate-950 text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.name}
+              </div>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="border-t border-slate-200 p-4">
+        <div className="mb-3 rounded-md bg-slate-50 p-3">
+          <div className="truncate text-sm font-semibold text-slate-950">{user.name}</div>
+          <div className="truncate text-xs text-slate-500">{user.email}</div>
+        </div>
+        <button
+          onClick={logout}
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-rose-600"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-100">
+      <button
+        onClick={() => setSidebarOpen(true)}
+        className="fixed left-4 top-4 z-40 rounded-md border border-slate-200 bg-white p-2 text-slate-700 shadow-sm lg:hidden"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
       {sidebarOpen && (
-        <div
-          className="lg:hidden fixed inset-0 z-40 bg-background/80 backdrop-blur-sm"
-          onClick={closeSidebar}
+        <button
+          aria-label="Close navigation"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden"
         />
       )}
 
-      {/* Sidebar */}
-      <div
+      <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out",
-          "lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 w-72 border-r border-slate-200 bg-white transition-transform lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex flex-col h-full">
-          {/* Mobile close button */}
-          <div className="lg:hidden flex justify-end p-4">
-            <Button variant="ghost" size="sm" onClick={closeSidebar}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+        {sidebar}
+      </aside>
 
-          {/* Logo */}
-          <div className="flex items-center space-x-2 p-6 border-b border-border lg:mt-0 -mt-12">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <FileText className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold text-foreground">NextDraft</span>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link key={item.name} href={item.href} onClick={closeSidebar}>
-                  <Button
-                    variant={isActive ? "secondary" : "ghost"}
-                    className={cn(
-                      "w-full justify-start",
-                      isActive &&
-                        "bg-primary/10 text-primary hover:bg-primary/20"
-                    )}
-                  >
-                    <item.icon className="mr-3 h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">{item.name}</span>
-                  </Button>
-                </Link>
-              );
-            })}
-            <Button
-              onClick={handleLogout}
-              variant="ghost"
-              className="w-full justify-start mt-4 text-destructive hover:bg-destructive/10"
-            >
-              <LogOut className="mr-3 h-4 w-4 flex-shrink-0" />
-              <span className="truncate">Logout</span>
-            </Button>
-          </nav>
-
-          {/* User Menu */}
-          <div className="p-4 border-t border-border">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="w-full justify-start p-2">
-                  <Avatar className="h-8 w-8 mr-3 flex-shrink-0">
-                    <AvatarImage
-                      src={user.profileImage?.url || "/placeholder.svg"}
-                      alt={user.name}
-                    />
-                    <AvatarFallback className="bg-primary text-primary-foreground">
-                      {user.name.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col items-start min-w-0">
-                    <span className="text-sm font-medium truncate max-w-full">
-                      {user.name}
-                    </span>
-                    <span className="text-xs text-muted-foreground truncate max-w-full">
-                      {user.email}
-                    </span>
-                  </div>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard/profile">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Profile
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Log out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="lg:pl-64">
-        <main className="p-4 sm:p-6 lg:p-8 pt-16 lg:pt-8">{children}</main>
-      </div>
+      <main className="min-h-screen pt-14 lg:pl-72 lg:pt-0">{children}</main>
     </div>
   );
 }

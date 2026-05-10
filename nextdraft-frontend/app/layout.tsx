@@ -11,9 +11,6 @@ export const metadata: Metadata = {
   title: "NextDraft - AI-Powered Resume Optimization",
   description:
     "Optimize your resume with AI-powered suggestions tailored to job descriptions",
-  icons: {
-    icon: "/favicon.svg",
-  },
 };
 
 export default function RootLayout({

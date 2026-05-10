@@ -5,6 +5,7 @@ const {
   loginUser,
   getUser,
   updateUser,
+  addPoints,
   deleteUser,
   getAllUsers,
 } = require("../controllers/user_controller");
@@ -19,6 +20,9 @@ router.post("/login", loginUser);
 
 // Get all users
 router.get("/", protect, getAllUsers);
+
+// Add demo points pack
+router.post("/points", protect, addPoints);
 
 // Get user by ID
 router.get("/:id", protect, getUser);

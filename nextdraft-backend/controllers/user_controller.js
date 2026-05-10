@@ -2,175 +2,107 @@ const User = require("../models/User_model");
 const cloudinary = require("../config/cloudinary");
 const fs = require("fs");
 const jwt = require("jsonwebtoken");
+const { sendWelcomeEmail, sendPointsAddedEmail, sendAccountDeletedEmail } = require("../services/email_service");
 
-// Enum options
-const INDUSTRY_OPTIONS = [
-  "Software",
-  "Finance",
-  "Healthcare",
-  "Education",
-  "Marketing",
-  "Other",
-];
+const publicUser = (user, token) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  profileImage: user.profileImage,
+  pointsBalance: user.pointsBalance ?? 0,
+  pointsLedger: user.pointsLedger ?? [],
+  plan: user.plan,
+  planExpiresAt: user.planExpiresAt,
+  ...(token ? { token } : {}),
+});
 
-const EXPERIENCE_LEVEL_OPTIONS = [
-  "Intern",
-  "Junior",
-  "Mid-level",
-  "Senior",
-  "Lead",
-  "Manager",
-];
-
-// ---------------------------
-// REGISTER USER
-// ---------------------------
 const registerUser = async (req, res) => {
-  const { name, email, password, industry, experienceLevel } = req.body;
+  const { name, email, password } = req.body;
 
   try {
-    // Check if user exists
     const userExists = await User.findOne({ email });
-    if (userExists) {
-      return res.status(400).json({ message: "User already exists" });
-    }
+    if (userExists) return res.status(400).json({ message: "User already exists" });
 
-    // Validate enums
-    if (industry && !INDUSTRY_OPTIONS.includes(industry)) {
-      return res.status(400).json({
-        message: `Invalid industry. Allowed values: ${INDUSTRY_OPTIONS.join(
-          ", "
-        )}`,
-      });
-    }
-
-    if (
-      experienceLevel &&
-      !EXPERIENCE_LEVEL_OPTIONS.includes(experienceLevel)
-    ) {
-      return res.status(400).json({
-        message: `Invalid experience level. Allowed values: ${EXPERIENCE_LEVEL_OPTIONS.join(
-          ", "
-        )}`,
-      });
-    }
-
-    // Upload profile image to Cloudinary if file exists
     let profileImage = { url: "", public_id: "" };
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "profile_pics",
       });
-      profileImage = {
-        url: result.secure_url,
-        public_id: result.public_id,
-      };
-      // Clean up temporary file
+      profileImage = { url: result.secure_url, public_id: result.public_id };
       fs.unlinkSync(req.file.path);
     }
 
-    // Create user
     const user = await User.create({
       name,
       email,
       password,
-      industry: industry || "Other",
-      experienceLevel: experienceLevel || "Intern",
       profileImage,
+      pointsBalance: 50,
+      pointsLedger: [{ type: "credit", points: 50, rupees: 0, reason: "Free starter points" }],
     });
 
-    // Generate token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-    res.status(201).json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      industry: user.industry,
-      experienceLevel: user.experienceLevel,
-      profileImage: user.profileImage,
-      token,
-    });
+    // Fire-and-forget welcome email
+    sendWelcomeEmail(user);
+
+    res.status(201).json(publicUser(user, token));
   } catch (error) {
-    // Clean up uploaded file if there was an error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// ---------------------------
-// LOGIN USER
-// ---------------------------
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Validate input
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Please provide email and password" });
+      return res.status(400).json({ message: "Please provide email and password" });
     }
 
     const user = await User.findOne({ email });
-
-    if (user && (await user.matchPassword(password))) {
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-        expiresIn: "7d",
-      });
-
-      res.json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        industry: user.industry,
-        experienceLevel: user.experienceLevel,
-        profileImage: user.profileImage,
-        token,
-      });
-    } else {
-      res.status(401).json({ message: "Invalid email or password" });
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({ message: "Invalid email or password" });
     }
+
+    if (user.pointsBalance === undefined || user.pointsBalance === null) {
+      user.pointsBalance = 50;
+      user.pointsLedger.push({
+        type: "credit",
+        points: 50,
+        rupees: 0,
+        reason: "Free starter points",
+      });
+      await user.save();
+    }
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    res.json(publicUser(user, token));
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// ---------------------------
-// GET USER BY ID
-// ---------------------------
 const getUser = async (req, res) => {
   try {
-    // Validate ObjectId format
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
     const user = await User.findById(req.params.id).select("-password");
-
-    if (user) {
-      res.json(user);
-    } else {
-      res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(publicUser(user));
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// ---------------------------
-// UPDATE USER
-// ---------------------------
 const updateUser = async (req, res) => {
   try {
-    // Validate ObjectId format
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
@@ -178,116 +110,81 @@ const updateUser = async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Partial updates with proper validation
     if (req.body.name !== undefined) {
-      if (
-        typeof req.body.name !== "string" ||
-        req.body.name.trim().length === 0
-      ) {
-        return res
-          .status(400)
-          .json({ message: "Name must be a non-empty string" });
+      if (typeof req.body.name !== "string" || req.body.name.trim().length === 0) {
+        return res.status(400).json({ message: "Name must be a non-empty string" });
       }
       user.name = req.body.name.trim();
     }
 
-    if (req.body.email && req.body.email !== user.email) {
-      const emailExists = await User.findOne({ email: req.body.email });
-      if (emailExists) {
-        return res.status(400).json({ message: "Email already in use" });
-      }
-      user.email = req.body.email;
-    }
-
-    if (req.body.industry) {
-      if (!INDUSTRY_OPTIONS.includes(req.body.industry)) {
-        return res.status(400).json({
-          message: `Invalid industry. Allowed values: ${INDUSTRY_OPTIONS.join(
-            ", "
-          )}`,
-        });
-      }
-      user.industry = req.body.industry;
-    }
-
-    if (req.body.experienceLevel) {
-      if (!EXPERIENCE_LEVEL_OPTIONS.includes(req.body.experienceLevel)) {
-        return res.status(400).json({
-          message: `Invalid experience level. Allowed values: ${EXPERIENCE_LEVEL_OPTIONS.join(
-            ", "
-          )}`,
-        });
-      }
-      user.experienceLevel = req.body.experienceLevel;
-    }
-
     if (req.body.password) {
       if (req.body.password.length < 6) {
-        return res
-          .status(400)
-          .json({ message: "Password must be at least 6 characters long" });
+        return res.status(400).json({ message: "Password must be at least 6 characters long" });
       }
       user.password = req.body.password;
     }
 
-    // Profile image update
     if (req.file) {
       try {
-        // Delete old image from Cloudinary if exists
         if (user.profileImage?.public_id) {
           await cloudinary.uploader.destroy(user.profileImage.public_id);
         }
-
         const result = await cloudinary.uploader.upload(req.file.path, {
           folder: "profile_pics",
         });
-
-        user.profileImage = {
-          url: result.secure_url,
-          public_id: result.public_id,
-        };
-
-        // Clean up temporary file
+        user.profileImage = { url: result.secure_url, public_id: result.public_id };
         fs.unlinkSync(req.file.path);
       } catch (cloudinaryError) {
         console.error("Cloudinary upload error:", cloudinaryError);
-        // Clean up temporary file on error
-        if (fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
         return res.status(500).json({ message: "Failed to upload image" });
       }
     }
 
-    // Update the updatedAt field
     user.updatedAt = new Date();
-
     const updatedUser = await user.save();
-
-    res.json({
-      _id: updatedUser._id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      industry: updatedUser.industry,
-      experienceLevel: updatedUser.experienceLevel,
-      profileImage: updatedUser.profileImage,
-    });
+    res.json(publicUser(updatedUser));
   } catch (error) {
-    // Clean up uploaded file if there was an error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// ---------------------------
-// DELETE USER
-// ---------------------------
+const addPoints = async (req, res) => {
+  try {
+    const { pack } = req.body;
+    const packs = {
+      starter: { points: 50, rupees: 50 },
+      plus: { points: 150, rupees: 150 },
+      pro: { points: 500, rupees: 500 },
+    };
+    const selected = packs[pack] || packs.starter;
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.pointsBalance = (user.pointsBalance || 0) + selected.points;
+    user.pointsLedger.push({
+      type: "credit",
+      points: selected.points,
+      rupees: selected.rupees,
+      reason: `${selected.points} point pack`,
+    });
+    await user.save();
+
+    // Fire-and-forget points email
+    sendPointsAddedEmail(user, selected.points);
+
+    res.json(publicUser(user));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to add points" });
+  }
+};
+
 const deleteUser = async (req, res) => {
   try {
-    // Validate ObjectId format
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
@@ -295,18 +192,22 @@ const deleteUser = async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Delete profile image from Cloudinary if exists
     if (user.profileImage?.public_id) {
       try {
         await cloudinary.uploader.destroy(user.profileImage.public_id);
       } catch (err) {
         console.error("Cloudinary delete error:", err);
-        // Continue with user deletion even if image deletion fails
       }
     }
 
-    // Use deleteOne instead of deprecated remove()
+    // Save email/name before deleting
+    const { email, name } = user;
+
     await User.findByIdAndDelete(req.params.id);
+
+    // Fire-and-forget goodbye email
+    sendAccountDeletedEmail(email, name);
+
     res.json({ message: "User removed successfully" });
   } catch (error) {
     console.error(error);
@@ -314,12 +215,8 @@ const deleteUser = async (req, res) => {
   }
 };
 
-// ---------------------------
-// GET ALL USERS
-// ---------------------------
 const getAllUsers = async (req, res) => {
   try {
-    // Add pagination support
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
@@ -329,17 +226,11 @@ const getAllUsers = async (req, res) => {
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });
-
     const total = await User.countDocuments();
 
     res.json({
       users,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });
   } catch (error) {
     console.error(error);
@@ -352,6 +243,7 @@ module.exports = {
   loginUser,
   getUser,
   updateUser,
+  addPoints,
   deleteUser,
   getAllUsers,
 };

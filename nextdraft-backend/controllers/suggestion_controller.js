@@ -1,4 +1,8 @@
-const { generateResumeSuggestions } = require("../services/suggestion_service");
+const {
+  generateResumeSuggestions,
+  generateAndApplySuggestions,
+  applySuggestionsToPdf,
+} = require("../services/suggestion_service");
 const Suggestion = require("../models/Suggestion_model");
 
 const generateSuggestionsController = async (req, res) => {
@@ -15,6 +19,53 @@ const generateSuggestionsController = async (req, res) => {
     res
       .status(500)
       .json({ message: error.message || "Failed to generate suggestions" });
+  }
+};
+
+const optimizeResumeController = async (req, res) => {
+  try {
+    const { resumeId, jobDescriptionText, roleTitle, companyName } = req.body;
+    if (!resumeId || !jobDescriptionText) {
+      return res
+        .status(400)
+        .json({ message: "resumeId and jobDescriptionText required" });
+    }
+
+    const result = await generateAndApplySuggestions({
+      resumeId,
+      jobText: jobDescriptionText,
+      roleTitle,
+      companyName,
+      userId: req.user._id,
+    });
+
+    res.status(200).json({
+      message: "Resume optimized",
+      ...result,
+    });
+  } catch (error) {
+    console.error("Optimize resume error:", error);
+    const status = error.message === "Not authorized" ? 403 : 500;
+    res
+      .status(status)
+      .json({ message: error.message || "Failed to optimize resume" });
+  }
+};
+
+const applySuggestionsController = async (req, res) => {
+  try {
+    const { suggestionId } = req.body;
+    if (!suggestionId) {
+      return res.status(400).json({ message: "suggestionId required" });
+    }
+
+    const editedPdfUrl = await applySuggestionsToPdf(suggestionId);
+    res.status(200).json({ editedPdfUrl });
+  } catch (error) {
+    console.error("Apply suggestions error:", error);
+    res
+      .status(500)
+      .json({ message: error.message || "Failed to apply suggestions" });
   }
 };
 
@@ -45,6 +96,8 @@ const getSuggestionById = async (req, res) => {
 
 module.exports = {
   generateSuggestionsController,
+  optimizeResumeController,
+  applySuggestionsController,
   getSuggestionsByResume,
   getSuggestionById,
 };
