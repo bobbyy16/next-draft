@@ -2,7 +2,13 @@ const User = require("../models/User_model");
 const cloudinary = require("../config/cloudinary");
 const fs = require("fs");
 const jwt = require("jsonwebtoken");
-const { sendWelcomeEmail, sendPointsAddedEmail, sendAccountDeletedEmail } = require("../services/email_service");
+const crypto = require("crypto");
+const {
+  sendWelcomeEmail,
+  sendPointsAddedEmail,
+  sendAccountDeletedEmail,
+  sendPasswordResetEmail,
+} = require("../services/email_service");
 
 const publicUser = (user, token) => ({
   _id: user._id,
@@ -15,6 +21,9 @@ const publicUser = (user, token) => ({
   planExpiresAt: user.planExpiresAt,
   ...(token ? { token } : {}),
 });
+
+const resetBaseUrl = () => process.env.FRONTEND_URL || "http://localhost:3000";
+const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
 
 const registerUser = async (req, res) => {
   const { name, email, password } = req.body;
@@ -80,6 +89,74 @@ const loginUser = async (req, res) => {
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
     res.json(publicUser(user, token));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const forgotPassword = async (req, res) => {
+  const email = req.body.email?.trim().toLowerCase();
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(200).json({
+        message: "If that email exists, a reset link has been sent.",
+      });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = hashToken(rawToken);
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    await user.save();
+
+    const resetUrl = `${resetBaseUrl()}/auth/reset-password?token=${rawToken}`;
+    sendPasswordResetEmail(user, resetUrl).catch((error) =>
+      console.error("[Email] Unhandled:", error)
+    );
+
+    res.status(200).json({
+      message: "If that email exists, a reset link has been sent.",
+      ...(
+        process.env.NODE_ENV !== "production" || !process.env.SMTP_HOST
+          ? { resetUrl }
+          : {}
+      ),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  const token = req.body.token?.trim();
+  const password = req.body.password;
+  if (!token || !password) {
+    return res.status(400).json({ message: "Token and password are required" });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ message: "Password must be at least 6 characters long" });
+  }
+
+  try {
+    const user = await User.findOne({
+      resetPasswordToken: hashToken(token),
+      resetPasswordExpiresAt: { $gt: new Date() },
+    });
+    if (!user) {
+      return res.status(400).json({ message: "Reset link is invalid or expired" });
+    }
+
+    user.password = password;
+    user.resetPasswordToken = "";
+    user.resetPasswordExpiresAt = null;
+    await user.save();
+
+    res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
@@ -241,6 +318,8 @@ const getAllUsers = async (req, res) => {
 module.exports = {
   registerUser,
   loginUser,
+  forgotPassword,
+  resetPassword,
   getUser,
   updateUser,
   addPoints,

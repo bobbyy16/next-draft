@@ -3,7 +3,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Clock, FileText, LayoutDashboard, LogOut, Menu, User, X } from "lucide-react";
+import { Clock, FileText, FolderOpen, LayoutDashboard, LogOut, Menu, User, X } from "lucide-react";
 import Link from "next/link";
 import { getUser, isAuthenticated, logout, User as AuthUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -11,25 +11,33 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Resume Optimizer", href: "/dashboard/resumes", icon: FileText },
+  { name: "Resume & JDs", href: "/dashboard/library", icon: FolderOpen },
   { name: "Activity", href: "/dashboard/activity", icon: Clock },
   { name: "Profile", href: "/dashboard/profile", icon: User },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [checkedAuth, setCheckedAuth] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.push("/auth/login");
+    const authed = isAuthenticated();
+    const storedUser = getUser();
+
+    if (!authed || !storedUser) {
+      setUser(null);
+      setCheckedAuth(true);
+      router.replace("/auth/login");
       return;
     }
-    setUser(getUser());
+    setUser(storedUser);
+    setCheckedAuth(true);
   }, [router]);
 
-  if (!user) {
+  if (!checkedAuth || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 text-slate-600">
         <div className="text-sm">Loading workspace...</div>
@@ -46,7 +54,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div>
             <div className="text-base font-semibold tracking-normal text-slate-950">NextDraft</div>
-            <div className="text-xs text-slate-500">ATS resume editor</div>
+            <div className="text-xs text-slate-500">Resume editor</div>
           </div>
         </Link>
         <button

@@ -1,29 +1,17 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Bold,
-  Check,
-  Download,
-  Italic,
-  List,
-  Loader2,
-  Redo2,
-  Save,
-  Sparkles,
-  Strikethrough,
-  Underline,
-  Undo2,
-  Upload,
-  Wallet,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, Download, History, Loader2, Save, Sparkles, Upload, Wallet } from "lucide-react";
 import Link from "next/link";
 import { getAuthToken, getUser } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/utils";
-import { BasicResumeTemplate } from "@/components/templates/ResumeTemplates";
-
-/* ── Types ─────────────────────────────────────── */
+import {
+  BasicResumeTemplate,
+  parseResumeDraft,
+  serializeResumeDraft,
+  type ResumeDraft,
+} from "@/components/templates/ResumeTemplates";
 
 interface Resume {
   _id: string;
@@ -44,9 +32,18 @@ interface Suggestion {
   applied?: boolean;
 }
 
+interface SuggestionHistory {
+  _id: string;
+  appliedCount?: number;
+  pointsSpent?: number;
+  jobTitle?: string;
+  suggestions: Suggestion[];
+  createdAt: string;
+}
+
 interface OptimizeResult {
   suggestion: {
-    overallScore: number;
+    _id?: string;
     suggestions: Suggestion[];
   };
   resume: Resume;
@@ -55,12 +52,9 @@ interface OptimizeResult {
   pointsBalance?: number;
 }
 
-/* ── Constants ─────────────────────────────────── */
-
-const DEFAULT_ATS_SCORE = 0;
-
 const sampleResume = `JANE CARTER
-jane.carter@email.com | (555) 123-4567 | Austin, TX | linkedin.com/in/janecarter
+jane.carter@email.com
+(555) 123-4567 | Austin, TX | linkedin.com/in/janecarter
 
 SUMMARY
 Customer operations specialist with 4 years of experience improving support workflows, resolving escalations, and coordinating cross-functional projects.
@@ -76,37 +70,20 @@ Support Associate | Northstar Services | 2019 - 2021
 - Trained new hires on internal tools and support processes.
 
 SKILLS
-Customer support, CRM, reporting, process improvement, onboarding, documentation
+- Customer support
+- CRM
+- Reporting
+- Process improvement
 
 EDUCATION
 B.A. Business Administration | State University | 2019`;
 
-/* ── Components ────────────────────────────────── */
 
-function ScoreBadge({ score }: { score: number }) {
-  const color =
-    score >= 75
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : score >= 55
-        ? "border-amber-200 bg-amber-50 text-amber-700"
-        : score > 0
-          ? "border-rose-200 bg-rose-50 text-rose-700"
-          : "border-slate-200 bg-white text-slate-500";
-
-  return (
-    <div className={`flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-full border-2 ${color}`}>
-      <span className="text-2xl font-bold">{score || "--"}</span>
-      <span className="text-[10px] font-semibold uppercase">ATS Score</span>
-    </div>
-  );
-}
-
-/* ── Page ──────────────────────────────────────── */
 
 export default function ResumesPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [selectedResumeId, setSelectedResumeId] = useState("");
-  const [resumeText, setResumeText] = useState(sampleResume);
+  const [draft, setDraft] = useState<ResumeDraft>(parseResumeDraft(sampleResume));
   const [jobText, setJobText] = useState("");
   const [roleTitle, setRoleTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -117,14 +94,14 @@ export default function ResumesPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [atsScore, setAtsScore] = useState(DEFAULT_ATS_SCORE);
+
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [history, setHistory] = useState<SuggestionHistory[]>([]);
   const [appliedCount, setAppliedCount] = useState(0);
   const [pointsBalance, setPointsBalance] = useState<number>(getUser()?.pointsBalance ?? 0);
-  const templateRef = useRef<HTMLDivElement>(null);
 
   const selectedResume = useMemo(
-    () => resumes.find((r) => r._id === selectedResumeId) ?? null,
+    () => resumes.find((resume) => resume._id === selectedResumeId) ?? null,
     [resumes, selectedResumeId]
   );
 
@@ -134,45 +111,58 @@ export default function ResumesPage() {
 
   useEffect(() => {
     if (!selectedResume) return;
-    setResumeText(selectedResume.parsedText || sampleResume);
-    setAtsScore(DEFAULT_ATS_SCORE);
+    setDraft(parseResumeDraft(selectedResume.parsedText || sampleResume));
+
     setSuggestions([]);
     setAppliedCount(0);
     setMessage("");
     setError("");
+    fetchHistory(selectedResume._id);
   }, [selectedResume]);
 
-  /* ── API helpers ──────────────────────────────── */
+  const persistUserPoints = (nextPoints: number) => {
+    setPointsBalance(nextPoints);
+    const user = getUser();
+    if (user) {
+      localStorage.setItem("user", JSON.stringify({ ...user, pointsBalance: nextPoints }));
+    }
+  };
 
   const fetchResumes = async () => {
     setLoading(true);
     try {
       const token = getAuthToken();
-      const res = await fetch(`${API_BASE_URL}/api/resumes`, {
+      const response = await fetch(`${API_BASE_URL}/api/resumes`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Failed to load resumes");
-      const data: Resume[] = await res.json();
+      if (!response.ok) throw new Error("Failed to load resumes");
+      const data: Resume[] = await response.json();
       setResumes(data);
       if (data.length > 0) setSelectedResumeId(data[0]._id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load resumes");
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "Failed to load resumes");
     } finally {
       setLoading(false);
     }
   };
 
-  const syncTemplateText = () => {
-    const value = templateRef.current?.innerText?.trim();
-    if (value) {
-      setResumeText(value);
-      return value;
+  const fetchHistory = async (resumeId: string) => {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_BASE_URL}/api/suggestions/resume/${resumeId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return setHistory([]);
+      setHistory(await response.json());
+    } catch {
+      setHistory([]);
     }
-    return resumeText;
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedFile(e.target.files?.[0] ?? null);
+  const currentText = serializeResumeDraft(draft);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectedFile(event.target.files?.[0] ?? null);
     setError("");
   };
 
@@ -181,110 +171,127 @@ export default function ResumesPage() {
       setError("Choose a PDF or Word resume first.");
       return;
     }
+
     setUploading(true);
     setError("");
     setMessage("");
+
     try {
-      syncTemplateText();
       const token = getAuthToken();
-      const fd = new FormData();
-      fd.append("resume", selectedFile);
-      const res = await fetch(`${API_BASE_URL}/api/resumes/upload`, {
+      const formData = new FormData();
+      formData.append("resume", selectedFile);
+      const response = await fetch(`${API_BASE_URL}/api/resumes/upload`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
-        body: fd,
+        body: formData,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Upload failed");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Upload failed");
       setSelectedFile(null);
       setMessage("Resume uploaded. You can optimize it now.");
       await fetchResumes();
       setSelectedResumeId(data.resume._id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Upload failed");
     } finally {
       setUploading(false);
     }
   };
 
-  const optimizeAndApply = async () => {
-    if (!selectedResumeId) { setError("Upload or select a resume first."); return; }
-    if (jobText.trim().length < 40) { setError("Paste the target job description before optimizing."); return; }
-    setOptimizing(true);
-    setError("");
-    setMessage("");
-    try {
-      const latestText = syncTemplateText();
-      const token = getAuthToken();
-      await fetch(`${API_BASE_URL}/api/resumes/${selectedResumeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ parsedText: latestText, isEdited: true }),
-      });
-      const res = await fetch(`${API_BASE_URL}/api/suggestions/optimize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ resumeId: selectedResumeId, jobDescriptionText: jobText, roleTitle, companyName }),
-      });
-      const data: OptimizeResult & { message?: string } = await res.json();
-      if (!res.ok) throw new Error(data.message || "AI optimize failed");
-
-      setResumeText(data.resume.parsedText);
-      setAtsScore(data.suggestion.overallScore);
-      setSuggestions(data.suggestion.suggestions ?? []);
-      setAppliedCount(data.appliedCount);
-      if (typeof data.pointsBalance === "number") {
-        setPointsBalance(data.pointsBalance);
-        const user = getUser();
-        if (user) localStorage.setItem("user", JSON.stringify({ ...user, pointsBalance: data.pointsBalance }));
-      }
-      setMessage(
-        data.appliedCount > 0
-          ? `Applied ${data.appliedCount} AI change${data.appliedCount === 1 ? "" : "s"} to your resume.`
-          : "AI analysis finished. No safe exact-text changes were applied."
-      );
-      setResumes((prev) => prev.map((r) => (r._id === data.resume._id ? data.resume : r)));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "AI optimize failed");
-    } finally {
-      setOptimizing(false);
+  const saveResume = async () => {
+    if (!selectedResumeId) {
+      setError("Upload or select a resume first.");
+      return;
     }
-  };
 
-  const saveManualEdits = async () => {
-    if (!selectedResumeId) { setError("Upload or select a resume first."); return; }
     setSaving(true);
     setError("");
     setMessage("");
+
     try {
-      const latestText = syncTemplateText();
       const token = getAuthToken();
-      const res = await fetch(`${API_BASE_URL}/api/resumes/${selectedResumeId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/resumes/${selectedResumeId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ parsedText: latestText, isEdited: true }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ parsedText: currentText, isEdited: true }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Save failed");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Save failed");
+      setResumes((current) =>
+        current.map((resume) => (resume._id === data.resume._id ? data.resume : resume))
+      );
       setMessage("Resume edits saved.");
-      setResumes((prev) => prev.map((r) => (r._id === data.resume._id ? data.resume : r)));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Save failed");
     } finally {
       setSaving(false);
     }
   };
 
-  /* ── Editor helpers ──────────────────────────── */
+  const optimizeAndApply = async () => {
+    if (!selectedResumeId) {
+      setError("Upload or select a resume first.");
+      return;
+    }
+    if (jobText.trim().length < 40) {
+      setError("Paste the target job description before optimizing.");
+      return;
+    }
 
-  const execCmd = (cmd: string) => (e: React.MouseEvent) => {
-    e.preventDefault();
-    document.execCommand(cmd, false);
+    setOptimizing(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const token = getAuthToken();
+      await fetch(`${API_BASE_URL}/api/resumes/${selectedResumeId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ parsedText: currentText, isEdited: true }),
+      });
+
+      const response = await fetch(`${API_BASE_URL}/api/suggestions/optimize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          resumeId: selectedResumeId,
+          jobDescriptionText: jobText,
+          roleTitle,
+          companyName,
+        }),
+      });
+      const data: OptimizeResult & { message?: string } = await response.json();
+      if (!response.ok) throw new Error(data.message || "AI optimize failed");
+
+      setDraft(parseResumeDraft(data.resume.parsedText));
+
+      setSuggestions(data.suggestion.suggestions ?? []);
+      setAppliedCount(data.appliedCount);
+      if (typeof data.pointsBalance === "number") persistUserPoints(data.pointsBalance);
+      setResumes((current) =>
+        current.map((resume) => (resume._id === data.resume._id ? data.resume : resume))
+      );
+      fetchHistory(data.resume._id);
+      setMessage(
+        data.appliedCount > 0
+          ? `Applied ${data.appliedCount} AI change${data.appliedCount === 1 ? "" : "s"} to your resume.`
+          : "AI analysis finished. No safe exact-text changes were applied."
+      );
+    } catch (optimizeError) {
+      setError(optimizeError instanceof Error ? optimizeError.message : "AI optimize failed");
+    } finally {
+      setOptimizing(false);
+    }
   };
-
-
-
-  /* ── Render ──────────────────────────────────── */
 
   if (loading) {
     return (
@@ -303,14 +310,19 @@ export default function ResumesPage() {
               body * { visibility: hidden !important; }
               #resume-print-area, #resume-print-area * { visibility: visible !important; }
               #resume-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+              .editor-only { display: none !important; }
               @page { size: letter portrait; margin: 0; }
+            }
+            [contenteditable][data-placeholder]:empty:before {
+              content: attr(data-placeholder);
+              color: #94a3b8;
             }
           `,
         }}
       />
+
       <div className="min-h-screen bg-slate-100 text-slate-950">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-5 p-4 lg:p-6">
-          {/* Header */}
           <header className="rounded-lg border border-slate-200 bg-white p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -322,16 +334,20 @@ export default function ResumesPage() {
                   Resume Optimizer
                 </h1>
                 <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                  Upload a resume, paste a job description, let AI optimize, then fine-tune in the editor.
+                  Edit directly inside the basic resume template, save the draft, then run AI optimization when needed.
                 </p>
               </div>
+
               <div className="flex flex-wrap items-center gap-2">
-                <Link href="/dashboard/activity" className="inline-flex h-10 items-center gap-2 rounded-md border border-teal-200 bg-teal-50 px-4 text-sm font-semibold text-teal-800 hover:bg-teal-100">
+                <Link
+                  href="/dashboard/profile"
+                  className="inline-flex h-10 items-center gap-2 rounded-md border border-teal-200 bg-teal-50 px-4 text-sm font-semibold text-teal-800 hover:bg-teal-100"
+                >
                   <Wallet className="h-4 w-4" />
                   {pointsBalance} pts
                 </Link>
                 <button
-                  onClick={saveManualEdits}
+                  onClick={saveResume}
                   disabled={saving || !selectedResumeId}
                   className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
                 >
@@ -349,7 +365,6 @@ export default function ResumesPage() {
             </div>
           </header>
 
-          {/* Flash messages */}
           {(message || error) && (
             <div
               className={`rounded-md border px-4 py-3 text-sm ${
@@ -362,76 +377,92 @@ export default function ResumesPage() {
             </div>
           )}
 
-          {/* Main layout: sidebar + editor + applied changes */}
-          <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)_280px]">
-            {/* Left sidebar */}
+          <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)_300px]">
             <aside className="space-y-4">
-              {/* Upload / Select */}
               <section className="rounded-lg border border-slate-200 bg-white p-4">
                 <div className="mb-3 flex items-center gap-2">
                   <Upload className="h-4 w-4 text-slate-500" />
                   <h2 className="text-sm font-semibold">Resume</h2>
                 </div>
                 <div className="space-y-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700">Select resume</label>
+                    <select
+                      value={selectedResumeId}
+                      onChange={(event) => setSelectedResumeId(event.target.value)}
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    >
+                      {resumes.length === 0 ? (
+                        <option value="">No resumes found</option>
+                      ) : (
+                        resumes.map((resume) => (
+                          <option key={resume._id} value={resume._id}>
+                            {resume.fileName}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    <p className="text-xs text-slate-500">
+                      {resumes.length}/5 resumes used. Manage uploads and deletes in{" "}
+                      <Link href="/dashboard/library" className="font-semibold text-teal-700 hover:text-teal-800">
+                        Resume & JDs
+                      </Link>
+                      .
+                    </p>
+                  </div>
+
                   <input
                     type="file"
                     accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     onChange={handleFileChange}
-                    className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-700"
+                    disabled={resumes.length >= 5}
+                    className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                   />
                   <button
                     onClick={uploadResume}
-                    disabled={uploading || !selectedFile}
+                    disabled={uploading || !selectedFile || resumes.length >= 5}
                     className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
                   >
                     {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                     Upload resume
                   </button>
-                  {resumes.length > 0 && (
-                    <select
-                      value={selectedResumeId}
-                      onChange={(e) => setSelectedResumeId(e.target.value)}
-                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
-                    >
-                      {resumes.map((r) => (
-                        <option key={r._id} value={r._id}>{r.fileName}</option>
-                      ))}
-                    </select>
+                  {resumes.length >= 5 && (
+                    <p className="text-xs text-rose-600">
+                      Resume limit reached. Delete a resume from Resume & JDs before uploading another.
+                    </p>
                   )}
                 </div>
               </section>
 
-              {/* AI Optimize */}
               <section className="rounded-lg border border-slate-200 bg-white p-4">
-                <div className="mb-4 flex items-center gap-4">
-                  <ScoreBadge score={atsScore} />
-                  <div>
-                    <h2 className="text-sm font-semibold">AI optimize</h2>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
-                      Runs ATS analysis and applies safe changes. Costs 50 points per run.
-                    </p>
-                  </div>
+                <div className="mb-4">
+                  <h2 className="text-sm font-semibold">AI improve</h2>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    Reviews your resume against the job description and applies safe wording changes. Costs 50 points per run.
+                  </p>
                 </div>
+
                 <div className="space-y-3">
                   <input
                     value={roleTitle}
-                    onChange={(e) => setRoleTitle(e.target.value)}
+                    onChange={(event) => setRoleTitle(event.target.value)}
                     placeholder="Target role, optional"
                     className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
                   />
                   <input
                     value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
+                    onChange={(event) => setCompanyName(event.target.value)}
                     placeholder="Company, optional"
                     className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
                   />
                   <textarea
                     value={jobText}
-                    onChange={(e) => setJobText(e.target.value)}
+                    onChange={(event) => setJobText(event.target.value)}
                     rows={9}
                     placeholder="Paste the full job description here..."
                     className="w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 outline-none focus:border-teal-600"
                   />
+
                   <button
                     onClick={optimizeAndApply}
                     disabled={optimizing || !selectedResumeId || jobText.trim().length < 40 || pointsBalance < 50}
@@ -441,56 +472,54 @@ export default function ResumesPage() {
                     AI apply changes
                   </button>
                   {pointsBalance < 50 && (
-                    <p className="text-xs text-rose-600">Add points from Profile to run another AI edit.</p>
+                    <p className="text-xs text-rose-600">Add points in Profile before running another AI edit.</p>
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-slate-200 bg-white p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <History className="h-4 w-4 text-slate-500" />
+                  <h2 className="text-sm font-semibold">History</h2>
+                </div>
+                <div className="max-h-72 divide-y divide-slate-200 overflow-y-auto">
+                  {history.length === 0 ? (
+                    <p className="py-3 text-sm text-slate-500">No AI edit history for this resume yet.</p>
+                  ) : (
+                    history.map((item) => (
+                      <button
+                        key={item._id}
+                        onClick={() => {
+                          setSuggestions(item.suggestions ?? []);
+                          setAppliedCount(item.appliedCount ?? 0);
+                        }}
+                        className="block w-full py-3 text-left"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="truncate text-sm font-medium">{item.jobTitle || "Target role"}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {new Date(item.createdAt).toLocaleString()} · {item.pointsSpent ?? 0} points
+                        </div>
+                      </button>
+                    ))
                   )}
                 </div>
               </section>
             </aside>
 
-            {/* Center: editor */}
             <main className="min-h-[calc(100vh-160px)]">
               <section className="min-h-[640px] overflow-hidden rounded-lg border border-slate-200 bg-slate-200">
-                {/* Toolbar */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300 bg-white px-4 py-2">
-                  <h2 className="text-sm font-semibold">Basic ATS template</h2>
-                  <div className="flex items-center gap-1">
-                    {[
-                      { cmd: "bold", icon: Bold, title: "Bold" },
-                      { cmd: "italic", icon: Italic, title: "Italic" },
-                      { cmd: "underline", icon: Underline, title: "Underline" },
-                      { cmd: "strikeThrough", icon: Strikethrough, title: "Strikethrough" },
-                      { cmd: "insertUnorderedList", icon: List, title: "Bullet list" },
-                    ].map(({ cmd, icon: Icon, title }) => (
-                      <button key={cmd} title={title} onMouseDown={execCmd(cmd)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800">
-                        <Icon className="h-4 w-4" />
-                      </button>
-                    ))}
-                    <span className="mx-1 h-5 w-px bg-slate-200" />
-                    <button title="Undo" onMouseDown={execCmd("undo")} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800">
-                      <Undo2 className="h-4 w-4" />
-                    </button>
-                    <button title="Redo" onMouseDown={execCmd("redo")} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800">
-                      <Redo2 className="h-4 w-4" />
-                    </button>
-
-                  </div>
+                <div className="flex items-center justify-between border-b border-slate-300 bg-white px-4 py-3">
+                  <h2 className="text-sm font-semibold">Edit directly in the basic resume template</h2>
+                  <span className="text-xs text-slate-500">Click any field and edit in place</span>
                 </div>
-                {/* Editor */}
-                <div id="resume-print-area" className="h-[calc(100%-49px)] overflow-auto p-4">
-                  <div
-                    ref={templateRef}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onBlur={() => syncTemplateText()}
-                    className="mx-auto max-w-[816px] outline-none focus:ring-2 focus:ring-teal-600"
-                  >
-                    <BasicResumeTemplate parsedText={resumeText} />
-                  </div>
+                <div id="resume-print-area" className="h-[calc(100%-45px)] overflow-auto p-4">
+                  <BasicResumeTemplate draft={draft} editable onChange={setDraft} />
                 </div>
               </section>
             </main>
 
-            {/* Right sidebar: applied changes */}
             <aside>
               <section className="sticky top-4 rounded-lg border border-slate-200 bg-white p-4">
                 <div className="mb-3 flex items-center justify-between">
@@ -501,25 +530,41 @@ export default function ResumesPage() {
                 </div>
                 <div className="max-h-[calc(100vh-200px)] space-y-2 overflow-y-auto">
                   {suggestions.length === 0 ? (
-                    <p className="text-sm text-slate-500">Run AI optimize to see the ATS suggestions.</p>
+                    <p className="text-sm text-slate-500">Run AI improve to see suggestions.</p>
                   ) : (
-                    suggestions.map((s, i) => (
-                      <div key={`${s.type}-${i}`} className="rounded-md border border-slate-200 p-3">
+                    suggestions.map((suggestion, index) => (
+                      <div key={`${suggestion.type}-${index}`} className="rounded-md border border-slate-200 p-3">
                         <div className="mb-1 flex items-center gap-2 text-xs font-semibold">
-                          <Check className={`h-3.5 w-3.5 ${s.applied ? "text-emerald-600" : "text-slate-400"}`} />
-                          <span className={s.priority === "high" ? "text-rose-600" : s.priority === "medium" ? "text-amber-600" : "text-teal-700"}>
-                            {s.priority}
+                          <Check className={`h-3.5 w-3.5 ${suggestion.applied ? "text-emerald-600" : "text-slate-400"}`} />
+                          <span
+                            className={
+                              suggestion.priority === "high"
+                                ? "text-rose-600"
+                                : suggestion.priority === "medium"
+                                  ? "text-amber-600"
+                                  : "text-teal-700"
+                            }
+                          >
+                            {suggestion.priority}
                           </span>
                           <span className="text-slate-400">·</span>
-                          <span className="text-slate-500">{s.type.replace(/_/g, " ")}</span>
+                          <span className="text-slate-500">{suggestion.type.replace(/_/g, " ")}</span>
                         </div>
-                        {s.originalText && (
-                          <p className="mt-1 text-[11px] leading-4 text-rose-600 line-through">{s.originalText.length > 120 ? s.originalText.slice(0, 120) + "…" : s.originalText}</p>
+                        {suggestion.originalText && (
+                          <p className="mt-1 text-[11px] leading-4 text-rose-600 line-through">
+                            {suggestion.originalText.length > 120
+                              ? `${suggestion.originalText.slice(0, 120)}...`
+                              : suggestion.originalText}
+                          </p>
                         )}
-                        {s.suggestedText && (
-                          <p className="mt-0.5 text-[11px] leading-4 font-medium text-emerald-700">{s.suggestedText.length > 120 ? s.suggestedText.slice(0, 120) + "…" : s.suggestedText}</p>
+                        {suggestion.suggestedText && (
+                          <p className="mt-0.5 text-[11px] font-medium leading-4 text-emerald-700">
+                            {suggestion.suggestedText.length > 120
+                              ? `${suggestion.suggestedText.slice(0, 120)}...`
+                              : suggestion.suggestedText}
+                          </p>
                         )}
-                        <p className="mt-1 text-[11px] leading-4 text-slate-500">{s.explanation}</p>
+                        <p className="mt-1 text-[11px] leading-4 text-slate-500">{suggestion.explanation}</p>
                       </div>
                     ))
                   )}

@@ -6,6 +6,7 @@ const {
   getAllJobDescriptions,
   getJobDescriptionById,
   deleteJobDescription,
+  updateJobDescription,
 } = require("../controllers/job_description_controller");
 
 const router = express.Router();
@@ -13,6 +14,7 @@ const router = express.Router();
 router.post("/upload", protect, uploadJobDescription);
 router.get("/", protect, getAllJobDescriptions);
 router.get("/:id", protect, getJobDescriptionById);
+router.patch("/:id", protect, updateJobDescription);
 router.delete("/:id", protect, deleteJobDescription);
 
 module.exports = router;

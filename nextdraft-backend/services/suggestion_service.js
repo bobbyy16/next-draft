@@ -21,7 +21,6 @@ ${jobText}
 
 Return ONLY valid JSON, no markdown fences, no extra text:
 {
-  "atsScore": 68,
   "suggestions": [
     {
       "type": "missing_keyword",
@@ -44,7 +43,6 @@ RULES - every rule is mandatory:
 7. "type": missing_keyword | weak_action_verb | quantify_achievement | skills_gap | phrasing | summary_improvement
 8. "section": summary | experience | education | skills | general
 9. "priority": high | medium | low
-10. "atsScore": honest 0-100 based on keyword and skills overlap. Do not inflate.
 `;
 
 const parseAiSuggestions = async (resumeText, jobText) => {
@@ -60,7 +58,6 @@ const parseAiSuggestions = async (resumeText, jobText) => {
     parsed = JSON.parse(cleaned);
   } catch {
     parsed = {
-      atsScore: 60,
       suggestions: [],
     };
   }
@@ -68,39 +65,11 @@ const parseAiSuggestions = async (resumeText, jobText) => {
   const suggestionsData = Array.isArray(parsed.suggestions)
     ? parsed.suggestions.filter((item) => item.originalText && item.suggestedText)
     : [];
-  const fallbackScore = calculateAtsScore(resumeText, jobText);
-  const atsScore =
-    typeof parsed.atsScore === "number" && parsed.atsScore > 0
-      ? Math.min(100, Math.max(0, parsed.atsScore))
-      : fallbackScore;
 
-  return { atsScore, suggestionsData };
+  return { suggestionsData };
 };
 
-const STOP_WORDS = new Set([
-  "the", "and", "for", "with", "that", "this", "you", "your", "are", "will",
-  "from", "have", "has", "into", "our", "their", "job", "role", "work",
-]);
 
-const keywordsFrom = (text) =>
-  text
-    .toLowerCase()
-    .replace(/[^a-z0-9+#.\s-]/g, " ")
-    .split(/\s+/)
-    .map((word) => word.trim())
-    .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
-
-const calculateAtsScore = (resumeText, jobText) => {
-  const resumeWords = new Set(keywordsFrom(resumeText));
-  const jobWords = Array.from(new Set(keywordsFrom(jobText))).slice(0, 80);
-  if (jobWords.length === 0) return 0;
-  const matches = jobWords.filter((word) => resumeWords.has(word)).length;
-  const coverage = matches / jobWords.length;
-  const hasCoreSections = ["summary", "experience", "skills", "education"].filter((section) =>
-    resumeText.toLowerCase().includes(section)
-  ).length;
-  return Math.min(100, Math.round(coverage * 80 + hasCoreSections * 5));
-};
 
 const applySuggestionText = (resumeText, suggestions = []) => {
   let updatedText = resumeText;
@@ -123,7 +92,7 @@ const generateResumeSuggestions = async (resumeId, jobId) => {
 
     if (!resume || !job) throw new Error("Resume or Job Description not found");
 
-    const { atsScore, suggestionsData } = await parseAiSuggestions(
+    const { suggestionsData } = await parseAiSuggestions(
       resume.parsedText,
       job.parsedText
     );
@@ -132,7 +101,6 @@ const generateResumeSuggestions = async (resumeId, jobId) => {
       resumeId,
       jobId,
       suggestions: suggestionsData,
-      overallScore: atsScore,
     });
 
     return suggestion;
@@ -169,7 +137,7 @@ const generateAndApplySuggestions = async ({
     keywords: [],
   });
 
-  const { atsScore, suggestionsData } = await parseAiSuggestions(
+  const { suggestionsData } = await parseAiSuggestions(
     resume.parsedText,
     job.parsedText
   );
@@ -179,7 +147,6 @@ const generateAndApplySuggestions = async ({
     resumeId,
     jobId: job._id,
     suggestions: applied.length > 0 ? applied : suggestionsData,
-    overallScore: atsScore,
     appliedCount: applied.length,
     pointsSpent: 50,
     jobTitle: roleTitle || "Target role",

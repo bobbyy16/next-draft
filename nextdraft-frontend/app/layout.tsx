@@ -10,7 +10,7 @@ import { Suspense } from "react";
 export const metadata: Metadata = {
   title: "NextDraft - AI-Powered Resume Optimization",
   description:
-    "Optimize your resume with AI-powered suggestions tailored to job descriptions",
+    "Improve your resume with AI-powered suggestions tailored to job descriptions",
 };
 
 export default function RootLayout({

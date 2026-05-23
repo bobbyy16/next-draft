@@ -18,7 +18,7 @@ import { API_BASE_URL } from "@/lib/utils";
 const promises = [
   "Upload PDF or Word resumes",
   "Run one-click AI optimization",
-  "Edit the basic ATS template",
+  "Edit the basic resume template",
   "Export the final resume as PDF",
 ];
 
@@ -124,7 +124,7 @@ export default function RegisterPage() {
             </div>
             <div>
               <div className="text-base font-semibold">NextDraft</div>
-              <div className="text-xs text-slate-500">ATS resume editor</div>
+              <div className="text-xs text-slate-500">Resume editor</div>
             </div>
           </Link>
 
@@ -241,7 +241,7 @@ export default function RegisterPage() {
             Built around one job application
           </div>
           <h2 className="text-5xl font-semibold tracking-normal">
-            Get from raw resume to cleaner ATS version in minutes.
+            Get from raw resume to a cleaner version in minutes.
           </h2>
           <p className="mt-5 max-w-xl text-base leading-7 text-slate-600">
             The app keeps the workflow simple: one resume, one job description, one AI apply button, one basic resume template.

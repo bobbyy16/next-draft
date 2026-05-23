@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useState } from "react";
-import { ArrowRight, Eye, EyeOff, FileText, Loader2, ShieldCheck } from "lucide-react";
+import { AlertCircle, ArrowRight, Eye, EyeOff, FileText, Loader2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API_BASE_URL } from "@/lib/utils";
@@ -13,17 +13,28 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const router = useRouter();
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
+    setFieldErrors({});
 
     const trimmedEmail = email.trim();
-    if (!trimmedEmail) { setError("Email is required."); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) { setError("Enter a valid email address."); return; }
-    if (!password) { setError("Password is required."); return; }
-    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    const nextFieldErrors: { email?: string; password?: string } = {};
+
+    if (!trimmedEmail) nextFieldErrors.email = "Email is required.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) nextFieldErrors.email = "Enter a valid email address.";
+
+    if (!password) nextFieldErrors.password = "Password is required.";
+    else if (password.length < 6) nextFieldErrors.password = "Password must be at least 6 characters.";
+
+    if (nextFieldErrors.email || nextFieldErrors.password) {
+      setFieldErrors(nextFieldErrors);
+      setError("Fix the highlighted fields and try again.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -44,6 +55,13 @@ export default function LoginPage() {
     }
   };
 
+  const inputClass = (hasError: boolean) =>
+    `h-11 w-full rounded-md border bg-white px-3 text-sm outline-none transition-colors ${
+      hasError
+        ? "border-rose-400 bg-rose-50/60 text-rose-950 focus:border-rose-500"
+        : "border-slate-300 focus:border-teal-700"
+    }`;
+
   return (
     <main className="grid min-h-screen bg-slate-100 text-slate-950 lg:grid-cols-[minmax(0,1fr)_520px]">
       <section className="hidden border-r border-slate-200 bg-white p-10 lg:flex lg:flex-col lg:justify-between">
@@ -53,7 +71,7 @@ export default function LoginPage() {
           </div>
           <div>
             <div className="text-base font-semibold">NextDraft</div>
-            <div className="text-xs text-slate-500">ATS resume editor</div>
+            <div className="text-xs text-slate-500">Resume editor</div>
           </div>
         </Link>
 
@@ -66,12 +84,12 @@ export default function LoginPage() {
             Continue improving your resume.
           </h1>
           <p className="mt-5 max-w-lg text-base leading-7 text-slate-600">
-            Sign in to upload resumes, apply one-click AI changes, edit the basic ATS template, and export your updated PDF.
+            Sign in to upload resumes, apply one-click AI changes, edit the basic resume template, and export your updated PDF.
           </p>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
-          {["One template", "ATS score", "AI apply"].map((item) => (
+          {["One template", "PDF export", "AI apply"].map((item) => (
             <div key={item} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700">
               {item}
             </div>
@@ -96,41 +114,62 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {error}
+            <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-700">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Email
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label htmlFor="email" className="block text-sm font-medium text-slate-700">
+                  Email
+                </label>
+                {fieldErrors.email && <span className="text-xs font-medium text-rose-600">{fieldErrors.email}</span>}
+              </div>
               <input
                 id="email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  if (fieldErrors.email) {
+                    setFieldErrors((current) => ({ ...current, email: undefined }));
+                  }
+                }}
                 placeholder="you@example.com"
                 required
-                className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-teal-700"
+                className={inputClass(Boolean(fieldErrors.email))}
+                aria-invalid={Boolean(fieldErrors.email)}
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Password
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700">
+                  Password
+                </label>
+                {fieldErrors.password && <span className="text-xs font-medium text-rose-600">{fieldErrors.password}</span>}
+              </div>
               <div className="relative">
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    if (fieldErrors.password) {
+                      setFieldErrors((current) => ({ ...current, password: undefined }));
+                    }
+                  }}
                   placeholder="Enter your password"
                   required
                   minLength={6}
-                  className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 pr-10 text-sm outline-none focus:border-teal-700"
+                  className={`${inputClass(Boolean(fieldErrors.password))} pr-10`}
+                  aria-invalid={Boolean(fieldErrors.password)}
                 />
                 <button
                   type="button"
@@ -139,6 +178,11 @@ export default function LoginPage() {
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
+              </div>
+              <div className="mt-2 text-right">
+                <Link href="/auth/forgot-password" className="text-sm font-medium text-teal-700 hover:text-teal-800">
+                  Forgot password?
+                </Link>
               </div>
             </div>
 

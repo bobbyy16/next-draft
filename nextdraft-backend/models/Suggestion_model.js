@@ -31,10 +31,7 @@ const suggestionSchema = new mongoose.Schema({
       },
     },
   ],
-  overallScore: {
-    type: Number,
-    default: 0,
-  },
+
   appliedCount: {
     type: Number,
     default: 0,

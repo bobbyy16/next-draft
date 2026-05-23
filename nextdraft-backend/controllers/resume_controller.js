@@ -11,6 +11,14 @@ const uploadResume = async (req, res) => {
       return res.status(400).json({ message: "No resume file uploaded" });
     }
 
+    const resumeCount = await Resume.countDocuments({ userId: req.user._id });
+    if (resumeCount >= 5) {
+      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({
+        message: "You can upload up to 5 resumes. Delete an existing resume before uploading another one.",
+      });
+    }
+
     // Upload to Cloudinary
     const result = await cloudinary.uploader.upload(req.file.path, {
       folder: `resumes/${req.user._id}`,
@@ -43,6 +51,7 @@ const uploadResume = async (req, res) => {
       userId: req.user._id,
       fileName: req.file.originalname,
       fileUrl: result.secure_url,
+      cloudinaryPublicId: result.public_id || "",
       parsedText,
       originalText,
       version: 1,
@@ -93,11 +102,11 @@ const deleteResume = async (req, res) => {
     if (resume.userId.toString() !== req.user._id.toString())
       return res.status(403).json({ message: "Not authorized" });
 
-    // Delete from Cloudinary
-    await cloudinary.uploader.destroy(
-      `resumes/${req.user._id}/${resume.fileName}`,
-      { resource_type: "raw" }
-    );
+    if (resume.cloudinaryPublicId) {
+      await cloudinary.uploader.destroy(resume.cloudinaryPublicId, {
+        resource_type: "raw",
+      });
+    }
 
     await Resume.findByIdAndDelete(req.params.id);
     res.status(200).json({ message: "Resume deleted successfully" });

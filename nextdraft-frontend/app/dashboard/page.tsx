@@ -27,7 +27,6 @@ interface Resume {
 
 interface SuggestionHistory {
   _id: string;
-  overallScore: number;
   appliedCount?: number;
   pointsSpent?: number;
   jobTitle?: string;
@@ -94,7 +93,7 @@ export default function DashboardPage() {
                 Welcome{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
               </h1>
               <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                Upload a resume, paste a job description, apply AI changes, edit the ATS template, and export.
+                Upload a resume, paste a job description, apply AI changes, edit the resume template, and export.
               </p>
             </div>
             <Link href="/dashboard/resumes">
@@ -121,7 +120,7 @@ export default function DashboardPage() {
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <Upload className="mb-4 h-5 w-5 text-slate-500" />
             <div className="text-3xl font-semibold">1</div>
-            <div className="text-sm text-slate-600">Basic ATS template</div>
+            <div className="text-sm text-slate-600">Basic resume template</div>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <Wallet className="mb-4 h-5 w-5 text-teal-600" />
@@ -189,7 +188,7 @@ export default function DashboardPage() {
                         <div className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString()}</div>
                       </div>
                       <span className="shrink-0 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-xs font-bold text-teal-700">
-                        {item.overallScore} ATS
+                        {item.appliedCount ?? 0} changes
                       </span>
                     </div>
                   ))

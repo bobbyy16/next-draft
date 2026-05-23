@@ -14,6 +14,10 @@ const resumeSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  cloudinaryPublicId: {
+    type: String,
+    default: "",
+  },
   parsedText: {
     type: String,
     default: "",

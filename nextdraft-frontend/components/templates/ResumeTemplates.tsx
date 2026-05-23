@@ -2,240 +2,356 @@
 
 import type React from "react";
 
-interface TemplateProps {
-  parsedText: string;
+export interface ResumeSection {
+  id: string;
+  title: string;
+  lines: string[];
 }
 
-/**
- * Labels that appear above the actual name in some resumes.
- * We skip these so the real name is displayed.
- */
-const NAME_LABELS = new Set([
-  "your name",
-  "name",
-  "full name",
-  "resume",
-  "curriculum vitae",
-  "cv",
-]);
+export interface ResumeDraft {
+  name: string;
+  contactLines: string[];
+  sections: ResumeSection[];
+}
 
-export function parseResumeSections(text: string) {
+interface TemplateProps {
+  draft: ResumeDraft;
+  editable?: boolean;
+  onChange?: (draft: ResumeDraft) => void;
+  exportMode?: boolean;
+}
+
+const NAME_LABELS = new Set(["your name", "name", "full name", "resume", "curriculum vitae", "cv"]);
+
+let idCounter = 0;
+const makeId = (prefix: string) => `${prefix}-${++idCounter}`;
+
+const isHeader = (line: string) => {
+  if (!line || line.length > 42) return false;
+  if (line === line.toUpperCase() && /[A-Z]/.test(line)) return true;
+  return line.endsWith(":") && line.length < 32;
+};
+
+const normalizeBullet = (line: string) => line.replace(/^[-*•▪▸►]\s*/, "");
+const isBulletLine = (line: string) => /^[-*•▪▸►]\s/.test(line);
+const isEntryLine = (line: string) =>
+  line.includes(" | ") ||
+  line.includes(" - ") ||
+  line.includes(" — ") ||
+  /\b(20\d{2}|19\d{2}|Present|Current|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/.test(line);
+
+export function parseResumeDraft(text: string): ResumeDraft {
   const lines = text.split("\n").map((line) => line.trim());
-
-  // Skip label lines like "YOUR NAME" at the very top
   let nameIndex = 0;
+
   while (nameIndex < Math.min(3, lines.length)) {
-    if (NAME_LABELS.has(lines[nameIndex].toLowerCase().replace(/[:\-–]/g, "").trim())) {
-      nameIndex += 1;
-    } else {
-      break;
-    }
+    const normalized = lines[nameIndex].toLowerCase().replace(/[:\-–]/g, "").trim();
+    if (NAME_LABELS.has(normalized)) nameIndex += 1;
+    else break;
   }
 
   const name = lines[nameIndex] ?? "";
-
-  const isHeader = (line: string) => {
-    if (!line || line.length > 42) return false;
-    if (line === line.toUpperCase() && /[A-Z]/.test(line)) return true;
-    return line.endsWith(":") && line.length < 32;
-  };
-
-  // Find contact info lines (right after the name)
   let contactEnd = nameIndex + 1;
-  for (let i = nameIndex + 1; i < Math.min(nameIndex + 7, lines.length); i += 1) {
-    if (isHeader(lines[i])) break;
-    if (!lines[i] && i > nameIndex + 2) break;
-    if (lines[i]) contactEnd = i + 1;
+
+  for (let index = nameIndex + 1; index < Math.min(nameIndex + 7, lines.length); index += 1) {
+    if (isHeader(lines[index])) break;
+    if (!lines[index] && index > nameIndex + 2) break;
+    if (lines[index]) contactEnd = index + 1;
   }
 
   const contactLines = lines.slice(nameIndex + 1, contactEnd).filter(Boolean);
-  const sections: { title: string; body: string[] }[] = [];
+  const sections: ResumeSection[] = [];
   let title = "";
   let body: string[] = [];
 
   lines.slice(contactEnd).forEach((line) => {
     if (isHeader(line)) {
-      if (title || body.some(Boolean)) sections.push({ title, body });
+      if (title || body.some(Boolean)) {
+        sections.push({
+          id: makeId("section"),
+          title,
+          lines: body.filter(Boolean),
+        });
+      }
       title = line.replace(/:$/, "");
       body = [];
-    } else {
-      body.push(line);
+      return;
     }
+    body.push(line);
   });
 
-  if (title || body.some(Boolean)) sections.push({ title, body });
+  if (title || body.some(Boolean)) {
+    sections.push({
+      id: makeId("section"),
+      title,
+      lines: body.filter(Boolean),
+    });
+  }
+
   return { name, contactLines, sections };
 }
 
-/**
- * Detect if a line looks like a bullet point.
- * Matches:  - text, * text, • text, ‣ text, ▸ text,
- * or lines that start with a sentence (uppercase letter + verb pattern)
- * appearing under Experience/Projects sections.
- */
-const isBulletLine = (line: string): boolean => {
-  return /^[-*•‣▸►]\s/.test(line);
-};
+export function serializeResumeDraft(draft: ResumeDraft): string {
+  const output: string[] = [];
+  output.push(draft.name.trim());
+  draft.contactLines.map((line) => line.trim()).filter(Boolean).forEach((line) => output.push(line));
+  output.push("");
 
-const cleanBullet = (line: string): string => {
-  return line.replace(/^[-*•‣▸►]\s*/, "");
-};
+  draft.sections.forEach((section) => {
+    if (section.title.trim()) output.push(section.title.trim().toUpperCase());
+    section.lines.map((line) => line.trimEnd()).filter(Boolean).forEach((line) => output.push(line));
+    output.push("");
+  });
 
-/**
- * Detect if a line is a role/entry heading (contains dates or pipes)
- */
-const isEntryLine = (line: string): boolean => {
+  return output.join("\n").trim();
+}
+
+function commitContent(value: string) {
+  return value.replace(/\u00a0/g, " ").replace(/\r/g, "").trimEnd();
+}
+
+function EditableText({
+  value,
+  className,
+  placeholder,
+  onCommit,
+}: {
+  value: string;
+  className: string;
+  placeholder?: string;
+  onCommit: (value: string) => void;
+}) {
   return (
-    line.includes(" — ") ||
-    line.includes(" - ") ||
-    /\b(20\d{2}|19\d{2}|Present|Current|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/.test(line)
+    <div
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck={false}
+      onBlur={(event) => onCommit(commitContent(event.currentTarget.innerText))}
+      className={className}
+      data-placeholder={placeholder || ""}
+    >
+      {value}
+    </div>
   );
-};
+}
 
-export function BasicResumeTemplate({ parsedText }: TemplateProps) {
-  const { name, contactLines, sections } = parseResumeSections(parsedText);
+export function BasicResumeTemplate({
+  draft,
+  editable = false,
+  onChange,
+  exportMode = false,
+}: TemplateProps) {
+  const totalLines =
+    draft.contactLines.length +
+    draft.sections.reduce((count, section) => count + Math.max(section.lines.length, 1), 0);
+  const totalCharacters =
+    draft.name.length +
+    draft.contactLines.join("").length +
+    draft.sections.reduce(
+      (count, section) => count + section.title.length + section.lines.join("").length,
+      0
+    );
+  const compactLevel =
+    totalCharacters > 4200 || totalLines > 42 ? 2 : totalCharacters > 3000 || totalLines > 32 ? 1 : 0;
+  const articlePadding = compactLevel === 2 ? "28px 32px" : compactLevel === 1 ? "30px 36px" : "32px 40px";
+  const articleFontSize = compactLevel === 2 ? "9.2px" : compactLevel === 1 ? "9.6px" : "10px";
+  const articleLineHeight = compactLevel === 2 ? 1.3 : compactLevel === 1 ? 1.38 : 1.5;
+  const showEditorControls = editable && !exportMode;
+  const updateDraft = (next: ResumeDraft) => {
+    if (onChange) onChange(next);
+  };
+
+  const updateSection = (sectionId: string, updater: (section: ResumeSection) => ResumeSection) => {
+    updateDraft({
+      ...draft,
+      sections: draft.sections.map((section) =>
+        section.id === sectionId ? updater(section) : section
+      ),
+    });
+  };
+
+  const addLine = (sectionId: string) => {
+    updateSection(sectionId, (section) => ({
+      ...section,
+      lines: [...section.lines, "- New bullet"],
+    }));
+  };
+
+  const removeLine = (sectionId: string, lineIndex: number) => {
+    updateSection(sectionId, (section) => ({
+      ...section,
+      lines: section.lines.filter((_, index) => index !== lineIndex),
+    }));
+  };
+
+  const addSection = () => {
+    updateDraft({
+      ...draft,
+      sections: [
+        ...draft.sections,
+        { id: makeId("section"), title: "NEW SECTION", lines: ["- New bullet"] },
+      ],
+    });
+  };
+
+  const removeSection = (sectionId: string) => {
+    updateDraft({
+      ...draft,
+      sections: draft.sections.filter((section) => section.id !== sectionId),
+    });
+  };
 
   return (
     <article
-      className="mx-auto h-[1056px] w-full max-w-[816px] overflow-hidden bg-white px-10 py-8 text-[#1a1a1a]"
+      className="mx-auto min-h-[1056px] w-full max-w-[816px] bg-white px-10 py-8 text-[#1a1a1a]"
       style={{
         fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
-        fontSize: "10px",
-        lineHeight: 1.5,
+        fontSize: articleFontSize,
+        lineHeight: articleLineHeight,
+        padding: articlePadding,
       }}
     >
-      {/* Header */}
       <header className="border-b border-[#ccc] pb-3">
-        <h1 className="m-0 text-[22px] font-bold tracking-tight text-[#0f172a]">
-          {name || "Your Name"}
-        </h1>
-        {contactLines.length > 0 && (
-          <p className="mt-1 text-[9.5px] tracking-wide text-[#555]">
-            {contactLines
-              .join(" | ")
-              .split(/\s*[|•·]\s*/)
-              .filter(Boolean)
-              .map((item, i, arr) => {
-                const trimmed = item.trim();
-                let href: string | null = null;
+        {editable ? (
+          <EditableText
+            value={draft.name}
+            placeholder="Your Name"
+            className={`${compactLevel === 2 ? "text-[20px]" : "text-[22px]"} min-h-[28px] font-bold tracking-tight text-[#0f172a] outline-none`}
+            onCommit={(value) => updateDraft({ ...draft, name: value || "Your Name" })}
+          />
+        ) : (
+          <h1 className={`m-0 ${compactLevel === 2 ? "text-[20px]" : "text-[22px]"} font-bold tracking-tight text-[#0f172a]`}>
+            {draft.name || "Your Name"}
+          </h1>
+        )}
 
-                if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-                  href = `mailto:${trimmed}`;
-                } else if (/^[\+\(]?\d[\d\s\-\(\)]{6,}$/.test(trimmed)) {
-                  href = `tel:${trimmed.replace(/[\s\-\(\)]/g, "")}`;
-                } else if (/\.(com|org|net|io|dev|in|me)\b/i.test(trimmed)) {
-                  href = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+        <div className="mt-1 space-y-1">
+          {draft.contactLines.map((line, index) =>
+            editable ? (
+              <EditableText
+                key={`contact-${index}-${line}`}
+                value={line}
+                placeholder="Email | Phone | City | Portfolio"
+                className="min-h-[18px] text-[9.5px] tracking-wide text-[#555] outline-none"
+                onCommit={(value) => {
+                  const next = [...draft.contactLines];
+                  next[index] = value;
+                  updateDraft({ ...draft, contactLines: next.filter((item) => item.trim() || next.length === 1) });
+                }}
+              />
+            ) : (
+              <p key={`contact-${index}`} className="text-[9.5px] tracking-wide text-[#555]">
+                {line}
+              </p>
+            )
+          )}
+          {showEditorControls && (
+            <button
+              type="button"
+              onClick={() => updateDraft({ ...draft, contactLines: [...draft.contactLines, ""] })}
+              className="editor-only text-[10px] font-semibold text-teal-700"
+            >
+              Add contact line
+            </button>
+          )}
+        </div>
+      </header>
+
+      <div className="mt-3 space-y-3">
+        {draft.sections.map((section) => (
+          <section key={section.id}>
+            <div className="mb-1 flex items-center justify-between gap-3 border-b border-[#ccc] pb-0.5">
+              {editable ? (
+                <EditableText
+                  value={section.title}
+                  placeholder="SECTION TITLE"
+                  className="min-h-[18px] flex-1 text-[10.5px] font-bold uppercase tracking-widest text-[#0f172a] outline-none"
+                  onCommit={(value) => updateSection(section.id, (current) => ({ ...current, title: value }))}
+                />
+              ) : (
+                <h2 className="text-[10.5px] font-bold uppercase tracking-widest text-[#0f172a]">{section.title}</h2>
+              )}
+              {showEditorControls && (
+                <button
+                  type="button"
+                  onClick={() => removeSection(section.id)}
+                  className="editor-only text-[10px] font-semibold text-rose-600"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              {section.lines.map((line, lineIndex) => {
+                const bullet = isBulletLine(line);
+                const display = bullet ? normalizeBullet(line) : line;
+                const lineClass = isEntryLine(line)
+                  ? "min-h-[18px] text-[10px] font-semibold text-[#111] outline-none"
+                  : "min-h-[18px] text-[10px] text-[#333] outline-none";
+
+                if (!editable) {
+                  return (
+                    <div key={`${section.id}-${lineIndex}`} className={bullet ? "flex gap-1.5 pl-3" : ""}>
+                      {bullet && <span className="text-[#888]">•</span>}
+                      <p className={lineClass}>{display}</p>
+                    </div>
+                  );
                 }
 
                 return (
-                  <span key={i}>
-                    {href ? (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#555] underline underline-offset-2 hover:text-[#111]"
-                      >
-                        {trimmed}
-                      </a>
-                    ) : (
-                      trimmed
-                    )}
-                    {i < arr.length - 1 && <span className="mx-1.5 text-[#bbb]">·</span>}
-                  </span>
+                  <div key={`${section.id}-${lineIndex}`} className="group flex items-start gap-2">
+                    {bullet && <span className="pt-[1px] text-[#888]">•</span>}
+                    <EditableText
+                      value={display}
+                      placeholder={bullet ? "Bullet text" : "Line text"}
+                      className={`${lineClass} flex-1`}
+                      onCommit={(value) =>
+                        updateSection(section.id, (current) => ({
+                          ...current,
+                          lines: current.lines.map((currentLine, currentIndex) =>
+                            currentIndex === lineIndex
+                              ? bullet
+                                ? `- ${value}`
+                                : value
+                              : currentLine
+                          ),
+                        }))
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeLine(section.id, lineIndex)}
+                      className="editor-only opacity-0 text-[10px] font-semibold text-rose-600 group-hover:opacity-100"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 );
               })}
-          </p>
-        )}
-      </header>
 
-      {/* Sections */}
-      <div className="mt-3 space-y-2.5">
-        {sections.map((section, index) => {
-          const body = section.body.filter(Boolean);
-          if (!section.title && body.length === 0) return null;
-
-          const elements: React.ReactNode[] = [];
-          let bulletBuffer: string[] = [];
-
-          const flushBullets = () => {
-            if (bulletBuffer.length === 0) return;
-            elements.push(
-              <ul
-                key={`bullets-${elements.length}`}
-                className="m-0 list-none space-y-0.5 pl-3"
-                style={{ listStyle: "none" }}
-              >
-                {bulletBuffer.map((text, bi) => (
-                  <li
-                    key={bi}
-                    className="relative m-0 pl-3 text-[10px] leading-[1.5] text-[#333]"
-                  >
-                    <span className="absolute left-0 top-0 text-[#888]">•</span>
-                    {text}
-                  </li>
-                ))}
-              </ul>
-            );
-            bulletBuffer = [];
-          };
-
-          body.forEach((line, lineIndex) => {
-            if (isBulletLine(line)) {
-              bulletBuffer.push(cleanBullet(line));
-            } else {
-              flushBullets();
-
-              if (isEntryLine(line)) {
-                // Role / entry heading
-                elements.push(
-                  <p
-                    key={`entry-${lineIndex}`}
-                    className="m-0 mt-1 text-[10px] font-semibold leading-[1.5] text-[#111]"
-                  >
-                    {line}
-                  </p>
-                );
-              } else {
-                // Regular body text — check if it looks like a descriptive sentence
-                // (starts with uppercase, > 40 chars) under experience/projects
-                const sectionType = section.title.toLowerCase();
-                const isDescriptive =
-                  (sectionType.includes("experience") ||
-                    sectionType.includes("project") ||
-                    sectionType.includes("work")) &&
-                  line.length > 30 &&
-                  /^[A-Z]/.test(line);
-
-                if (isDescriptive) {
-                  // Treat as bullet even without marker
-                  bulletBuffer.push(line);
-                } else {
-                  elements.push(
-                    <p
-                      key={`line-${lineIndex}`}
-                      className="m-0 text-[10px] leading-[1.5] text-[#333]"
-                    >
-                      {line}
-                    </p>
-                  );
-                }
-              }
-            }
-          });
-          flushBullets();
-
-          return (
-            <section key={`${section.title}-${index}`}>
-              {section.title && (
-                <h2 className="mb-1 border-b border-[#ccc] pb-0.5 text-[10.5px] font-bold uppercase tracking-widest text-[#0f172a]">
-                  {section.title}
-                </h2>
+              {showEditorControls && (
+                <button
+                  type="button"
+                  onClick={() => addLine(section.id)}
+                  className="editor-only pt-1 text-[10px] font-semibold text-teal-700"
+                >
+                  Add line
+                </button>
               )}
-              <div className="space-y-0.5">{elements}</div>
-            </section>
-          );
-        })}
+            </div>
+          </section>
+        ))}
+
+        {showEditorControls && (
+          <button
+            type="button"
+            onClick={addSection}
+            className="editor-only pt-1 text-[11px] font-semibold text-teal-700"
+          >
+            Add section
+          </button>
+        )}
       </div>
     </article>
   );

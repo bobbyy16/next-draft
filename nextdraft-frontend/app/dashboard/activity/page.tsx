@@ -8,7 +8,6 @@ import {
   FileText,
   Loader2,
   Sparkles,
-  TrendingUp,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -28,7 +27,6 @@ interface Resume {
 interface SuggestionHistory {
   _id: string;
   resumeId: string;
-  overallScore: number;
   appliedCount?: number;
   pointsSpent?: number;
   jobTitle?: string;
@@ -45,21 +43,7 @@ interface LedgerEntry {
 
 /* ── Helpers ───────────────────────────────────── */
 
-function ScorePill({ score }: { score: number }) {
-  const color =
-    score >= 75
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-      : score >= 55
-        ? "bg-amber-50 text-amber-700 border-amber-200"
-        : "bg-rose-50 text-rose-700 border-rose-200";
 
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold ${color}`}>
-      <TrendingUp className="h-3 w-3" />
-      {score}
-    </span>
-  );
-}
 
 /* ── Page ──────────────────────────────────────── */
 
@@ -214,7 +198,11 @@ export default function ActivityPage() {
                           <span className="truncate text-sm font-semibold">
                             {item.jobTitle || "Untitled role"}
                           </span>
-                          <ScorePill score={item.overallScore} />
+                          {item.appliedCount ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-xs font-bold text-teal-700">
+                              {item.appliedCount} changes
+                            </span>
+                          ) : null}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
                           {resume && (

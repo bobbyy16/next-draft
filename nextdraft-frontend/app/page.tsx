@@ -35,15 +35,15 @@ const workflow = [
   {
     icon: Gauge,
     title: "Edit and export",
-    text: "Review the ATS score, edit the basic template, and export a clean PDF.",
+    text: "Edit the basic template and export a clean PDF.",
   },
 ];
 
 const benefits = [
-  "One basic ATS-friendly resume template",
+  "One basic resume template",
   "AI changes applied in one click",
   "Manual text editor for final control",
-  "ATS score after every optimization",
+  "AI changes applied in seconds",
   "No prompt writing or template switching",
   "PDF export from the live preview",
 ];
@@ -80,7 +80,7 @@ export default function LandingPage() {
             </div>
             <div>
               <div className="text-base font-semibold tracking-normal">NextDraft</div>
-              <div className="text-xs text-slate-500">ATS resume editor</div>
+              <div className="text-xs text-slate-500">Resume editor</div>
             </div>
           </Link>
 
@@ -146,7 +146,7 @@ export default function LandingPage() {
             One-click AI resume changes
           </div>
           <h1 className="max-w-4xl text-4xl font-semibold tracking-normal text-slate-950 sm:text-5xl lg:text-6xl">
-            Build one ATS resume for the job you want.
+            Build one focused resume for the job you want.
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 lg:text-lg">
             NextDraft is a focused resume optimizer. Upload your resume, paste a job description, let AI apply safe changes, then edit a clean basic template before exporting.
@@ -164,7 +164,7 @@ export default function LandingPage() {
             </Link>
           </div>
           <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
-            {["No prompts", "One template", "ATS score"].map((item) => (
+            {["No prompts", "One template", "AI apply"].map((item) => (
               <div key={item} className="flex items-center gap-2 text-sm font-medium text-slate-700">
                 <Check className="h-4 w-4 text-teal-700" />
                 {item}
@@ -174,12 +174,9 @@ export default function LandingPage() {
         </div>
 
         <div id="preview" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-semibold">Live resume preview</div>
-            <div className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-              82 ATS
+            <div className="mb-3">
+              <div className="text-sm font-semibold">Live resume preview</div>
             </div>
-          </div>
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <pre className="whitespace-pre-wrap font-mono text-[11px] leading-5 text-slate-700">
               {sampleResume}
@@ -202,7 +199,7 @@ export default function LandingPage() {
           <div className="mb-8 max-w-2xl">
             <h2 className="text-2xl font-semibold tracking-normal">One workflow, no clutter</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              The product is intentionally narrow: optimize one resume against one job description and keep editing in one basic ATS template.
+              The product is intentionally narrow: optimize one resume against one job description and keep editing in one basic resume template.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-4">
@@ -256,7 +253,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-slate-200 bg-white px-4 py-6 lg:px-6">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <div>NextDraft &#169; {new Date().getFullYear()}. Focused ATS resume optimization.</div>
+          <div>NextDraft &#169; {new Date().getFullYear()}. Focused resume optimization.</div>
           <div className="flex gap-4">
             <Link href="/auth/login" className="hover:text-slate-950">Login</Link>
             <Link href="/auth/register" className="hover:text-slate-950">Register</Link>

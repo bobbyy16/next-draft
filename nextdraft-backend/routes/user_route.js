@@ -3,6 +3,8 @@ const router = express.Router();
 const {
   registerUser,
   loginUser,
+  forgotPassword,
+  resetPassword,
   getUser,
   updateUser,
   addPoints,
@@ -17,6 +19,10 @@ router.post("/register", upload.single("profileImage"), registerUser);
 
 // Login
 router.post("/login", loginUser);
+
+// Password reset
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 // Get all users
 router.get("/", protect, getAllUsers);

@@ -11,7 +11,7 @@ export default function NotFound() {
           </div>
           <div className="text-left">
             <div className="text-base font-semibold">NextDraft</div>
-            <div className="text-xs text-slate-500">ATS resume editor</div>
+            <div className="text-xs text-slate-500">Resume editor</div>
           </div>
         </Link>
 

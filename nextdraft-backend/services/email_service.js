@@ -141,8 +141,32 @@ function sendAccountDeletedEmail(email, name) {
   });
 }
 
+function sendPasswordResetEmail(user, resetUrl) {
+  return sendMail({
+    to: user.email,
+    subject: "Reset your NextDraft password",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
+        <h2 style="margin:0 0 8px">Reset your password</h2>
+        <p style="color:#555;line-height:1.6;margin:0 0 16px">
+          Hi ${user.name}, we received a request to reset your NextDraft password.
+        </p>
+        <p style="color:#555;line-height:1.6;margin:0 0 16px">
+          This link expires in 30 minutes. If you did not request this, you can ignore this email.
+        </p>
+        <a href="${resetUrl}"
+           style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">
+          Reset password
+        </a>
+        <p style="color:#999;font-size:12px;margin:24px 0 0">NextDraft - Focused ATS resume optimization.</p>
+      </div>
+    `,
+  });
+}
+
 module.exports = {
   sendWelcomeEmail,
   sendPointsAddedEmail,
   sendAccountDeletedEmail,
+  sendPasswordResetEmail,
 };

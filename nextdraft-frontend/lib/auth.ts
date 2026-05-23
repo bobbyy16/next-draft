@@ -24,7 +24,8 @@ export interface User {
 
 export const getAuthToken = (): string | null => {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("token");
+    const token = localStorage.getItem("token");
+    return token && token.trim() ? token : null;
   }
   return null;
 };
@@ -32,7 +33,14 @@ export const getAuthToken = (): string | null => {
 export const getUser = (): User | null => {
   if (typeof window !== "undefined") {
     const userStr = localStorage.getItem("user");
-    return userStr ? JSON.parse(userStr) : null;
+    if (!userStr) return null;
+    try {
+      const parsed = JSON.parse(userStr) as User;
+      if (!parsed?._id || !parsed?.email) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
   }
   return null;
 };
@@ -46,5 +54,5 @@ export const logout = () => {
 };
 
 export const isAuthenticated = (): boolean => {
-  return !!getAuthToken();
+  return !!getAuthToken() && !!getUser();
 };
