@@ -101,7 +101,7 @@ export default function LibraryPage() {
 
   const uploadResume = async () => {
     if (!selectedFile) {
-      toast.error("Choose a PDF or Word resume first.");
+      toast.error("Choose a PDF or DOCX resume first.");
       return;
     }
     if (selectedFile.size > 5 * 1024 * 1024) {
@@ -303,14 +303,14 @@ export default function LibraryPage() {
                 <Upload className="h-4 w-4 text-slate-500" />
                 <div>
                   <h2 className="text-sm font-semibold">Upload a new resume</h2>
-                  <p className="text-[11px] text-slate-500">PDF or Word document · max 5 MB</p>
+                  <p className="text-[11px] text-slate-500">PDF or DOCX document · max 5 MB</p>
                 </div>
               </div>
               <div className="flex flex-col items-stretch gap-3 p-4 sm:flex-row sm:items-center">
                 <input
                   id="library-file-input"
                   type="file"
-                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
                   disabled={resumeLimitReached}
                   className="flex-1 text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"

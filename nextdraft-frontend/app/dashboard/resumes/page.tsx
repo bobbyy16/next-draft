@@ -203,7 +203,7 @@ export default function ResumesPage() {
 
   const uploadResume = async () => {
     if (!selectedFile) {
-      toast.error("Choose a PDF or Word resume first.");
+      toast.error("Choose a PDF or DOCX resume first.");
       return;
     }
     if (selectedFile.size > 5 * 1024 * 1024) {
@@ -674,7 +674,7 @@ function ResumePicker({
         <input
           id="resume-file-input"
           type="file"
-          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
           disabled={resumeLimitReached}
           className="block w-full text-xs text-slate-600 file:mr-2 file:rounded-md file:border-0 file:bg-white file:px-2.5 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
@@ -686,7 +686,7 @@ function ResumePicker({
           className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-xs font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-          Upload PDF or Word
+          Upload PDF or DOCX
         </button>
       </div>
 
@@ -1056,7 +1056,7 @@ function EmptyResumeState() {
       <FileText className="mb-3 h-12 w-12 text-slate-300" />
       <h3 className="text-base font-semibold text-slate-900">No resume selected</h3>
       <p className="mt-1 max-w-sm text-sm text-slate-500">
-        Upload a PDF or Word file using the panel on the left to get started.
+        Upload a PDF or DOCX file using the panel on the left to get started.
       </p>
     </div>
   );

@@ -26,6 +26,9 @@ const ensureOwnership = (resource, userId) => {
 };
 
 const uploadResume = async (req, res) => {
+  let uploadedPublicId = "";
+  let stage = "validation";
+
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No resume file uploaded" });
@@ -39,11 +42,7 @@ const uploadResume = async (req, res) => {
       });
     }
 
-    const result = await cloudinary.uploader.upload(req.file.path, {
-      folder: `resumes/${req.user._id}`,
-      resource_type: "raw",
-    });
-
+    stage = "parsing";
     let parsedText = "";
     let originalText = "";
 
@@ -61,13 +60,29 @@ const uploadResume = async (req, res) => {
       originalText = parsedText;
     }
 
+    if (!parsedText.trim()) {
+      safeUnlink(req.file.path);
+      return res.status(422).json({
+        message:
+          "No readable text was found. Upload a text-based PDF or DOCX file; scanned or encrypted files are not supported.",
+      });
+    }
+
+    stage = "storage";
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: `resumes/${req.user._id}`,
+      resource_type: "raw",
+    });
+    uploadedPublicId = result.public_id || "";
+
     safeUnlink(req.file.path);
 
+    stage = "database";
     const resume = await Resume.create({
       userId: req.user._id,
       fileName: req.file.originalname.slice(0, 200),
       fileUrl: result.secure_url,
-      cloudinaryPublicId: result.public_id || "",
+      cloudinaryPublicId: uploadedPublicId,
       parsedText,
       originalText,
       version: 1,
@@ -76,9 +91,31 @@ const uploadResume = async (req, res) => {
 
     return res.status(201).json({ message: "Resume uploaded & parsed", resume });
   } catch (error) {
-    console.error("[Resume] upload error:", error.message);
+    console.error(`[Resume] upload ${stage} error:`, error.message);
     safeUnlink(req.file?.path);
-    return res.status(500).json({ message: "Resume upload failed" });
+
+    if (uploadedPublicId) {
+      cloudinary.uploader
+        .destroy(uploadedPublicId, { resource_type: "raw" })
+        .catch((cleanupError) =>
+          console.error("[Cloudinary] failed resume cleanup:", cleanupError.message)
+        );
+    }
+
+    if (stage === "parsing") {
+      return res.status(422).json({
+        message:
+          "This resume could not be read. Try exporting it as a text-based PDF or DOCX file.",
+      });
+    }
+    if (stage === "storage") {
+      return res.status(502).json({
+        message: "Resume storage is temporarily unavailable. Please try again.",
+      });
+    }
+    return res.status(500).json({
+      message: "The resume was read but could not be saved. Please try again.",
+    });
   }
 };
 
