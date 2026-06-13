@@ -2,54 +2,51 @@
 
 import type React from "react";
 import { useState } from "react";
-import { AlertCircle, ArrowRight, Eye, EyeOff, FileText, Loader2, ShieldCheck } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, FileText, Loader2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { API_BASE_URL } from "@/lib/utils";
+import { toast } from "sonner";
+import { api, ApiError } from "@/lib/api";
+import { setAuth, type User } from "@/lib/auth";
+
+interface LoginResponse extends User {
+  token: string;
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const router = useRouter();
 
+  const validate = (): boolean => {
+    const errors: { email?: string; password?: string } = {};
+    const trimmed = email.trim();
+    if (!trimmed) errors.email = "Email is required.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) errors.email = "Enter a valid email address.";
+    if (!password) errors.password = "Password is required.";
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError("");
-    setFieldErrors({});
-
-    const trimmedEmail = email.trim();
-    const nextFieldErrors: { email?: string; password?: string } = {};
-
-    if (!trimmedEmail) nextFieldErrors.email = "Email is required.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) nextFieldErrors.email = "Enter a valid email address.";
-
-    if (!password) nextFieldErrors.password = "Password is required.";
-    else if (password.length < 6) nextFieldErrors.password = "Password must be at least 6 characters.";
-
-    if (nextFieldErrors.email || nextFieldErrors.password) {
-      setFieldErrors(nextFieldErrors);
-      setError("Fix the highlighted fields and try again.");
-      return;
-    }
-
+    if (!validate()) return;
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail, password }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Login failed");
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data));
+      const data = await api.post<LoginResponse>(
+        "/api/users/login",
+        { email: email.trim(), password },
+        { auth: false }
+      );
+      const { token, ...user } = data;
+      setAuth(user, token);
+      toast.success("Welcome back");
       router.push("/dashboard/resumes");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error. Please try again.");
+      toast.error(err instanceof ApiError ? err.message : "Network error. Try again.");
     } finally {
       setLoading(false);
     }
@@ -108,27 +105,16 @@ export default function LoginPage() {
 
           <div className="mb-6">
             <h1 className="text-2xl font-semibold tracking-normal">Log in</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Open your resume optimizer workspace.
-            </p>
+            <p className="mt-1 text-sm text-slate-600">Open your resume optimizer workspace.</p>
           </div>
 
-          {error && (
-            <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-700">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div>
               <div className="mb-1.5 flex items-center justify-between">
-                <label htmlFor="email" className="block text-sm font-medium text-slate-700">
-                  Email
-                </label>
-                {fieldErrors.email && <span className="text-xs font-medium text-rose-600">{fieldErrors.email}</span>}
+                <label htmlFor="email" className="block text-sm font-medium text-slate-700">Email</label>
+                {fieldErrors.email && (
+                  <span className="text-xs font-medium text-rose-600">{fieldErrors.email}</span>
+                )}
               </div>
               <input
                 id="email"
@@ -136,11 +122,10 @@ export default function LoginPage() {
                 value={email}
                 onChange={(event) => {
                   setEmail(event.target.value);
-                  if (fieldErrors.email) {
-                    setFieldErrors((current) => ({ ...current, email: undefined }));
-                  }
+                  if (fieldErrors.email) setFieldErrors((c) => ({ ...c, email: undefined }));
                 }}
                 placeholder="you@example.com"
+                autoComplete="email"
                 required
                 className={inputClass(Boolean(fieldErrors.email))}
                 aria-invalid={Boolean(fieldErrors.email)}
@@ -149,10 +134,10 @@ export default function LoginPage() {
 
             <div>
               <div className="mb-1.5 flex items-center justify-between">
-                <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-                  Password
-                </label>
-                {fieldErrors.password && <span className="text-xs font-medium text-rose-600">{fieldErrors.password}</span>}
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700">Password</label>
+                {fieldErrors.password && (
+                  <span className="text-xs font-medium text-rose-600">{fieldErrors.password}</span>
+                )}
               </div>
               <div className="relative">
                 <input
@@ -161,19 +146,18 @@ export default function LoginPage() {
                   value={password}
                   onChange={(event) => {
                     setPassword(event.target.value);
-                    if (fieldErrors.password) {
-                      setFieldErrors((current) => ({ ...current, password: undefined }));
-                    }
+                    if (fieldErrors.password) setFieldErrors((c) => ({ ...c, password: undefined }));
                   }}
                   placeholder="Enter your password"
+                  autoComplete="current-password"
                   required
-                  minLength={6}
                   className={`${inputClass(Boolean(fieldErrors.password))} pr-10`}
                   aria-invalid={Boolean(fieldErrors.password)}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword((visible) => !visible)}
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   className="absolute right-2 top-1/2 rounded-md p-1.5 text-slate-500 -translate-y-1/2 hover:bg-slate-100"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

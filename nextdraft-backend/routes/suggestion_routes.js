@@ -1,5 +1,7 @@
 const express = require("express");
 const { protect } = require("../middleware/auth");
+const { validateObjectId } = require("../middleware/validate");
+const { aiLimiter } = require("../middleware/rate_limit");
 const {
   generateSuggestionsController,
   optimizeResumeController,
@@ -10,24 +12,10 @@ const {
 
 const router = express.Router();
 
-// Generate suggestions for a resume + job description
-// POST /api/suggestions/generate
-router.post("/generate", protect, generateSuggestionsController);
-
-// Generate and apply safe suggestions in one click
-// POST /api/suggestions/optimize
-router.post("/optimize", protect, optimizeResumeController);
-
-// Apply suggestions to PDF and get download URL
-// POST /api/suggestions/apply
+router.post("/generate", protect, aiLimiter, generateSuggestionsController);
+router.post("/optimize", protect, aiLimiter, optimizeResumeController);
 router.post("/apply", protect, applySuggestionsController);
-
-// Get all suggestions for a resume
-// GET /api/suggestions/resume/:resumeId
-router.get("/resume/:resumeId", protect, getSuggestionsByResume);
-
-// Get a single suggestion by its ID
-// GET /api/suggestions/:id
-router.get("/:id", protect, getSuggestionById);
+router.get("/resume/:resumeId", protect, validateObjectId("resumeId"), getSuggestionsByResume);
+router.get("/:id", protect, validateObjectId("id"), getSuggestionById);
 
 module.exports = router;

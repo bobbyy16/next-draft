@@ -2,18 +2,16 @@
 
 import type React from "react";
 import { useState } from "react";
-import {
-  ArrowRight,
-  Check,
-  Eye,
-  EyeOff,
-  FileText,
-  Loader2,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, Check, Eye, EyeOff, FileText, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { API_BASE_URL } from "@/lib/utils";
+import { toast } from "sonner";
+import { api, ApiError } from "@/lib/api";
+import { setAuth, type User } from "@/lib/auth";
+
+interface RegisterResponse extends User {
+  token: string;
+}
 
 const promises = [
   "Upload PDF or Word resumes",
@@ -23,14 +21,9 @@ const promises = [
 ];
 
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState({ name: "", email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [passwordFocused, setPasswordFocused] = useState(false);
@@ -68,14 +61,14 @@ export default function RegisterPage() {
 
   const handleBlur = (field: string) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
-    setFieldErrors((prev) => ({ ...prev, [field]: validateField(field, formData[field as keyof typeof formData]) }));
+    setFieldErrors((prev) => ({
+      ...prev,
+      [field]: validateField(field, formData[field as keyof typeof formData]),
+    }));
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError("");
-
-    // Validate all fields
     const errors: Record<string, string> = {};
     (["name", "email", "password"] as const).forEach((field) => {
       errors[field] = validateField(field, formData[field]);
@@ -87,21 +80,17 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const payload = new FormData();
-      payload.append("name", formData.name.trim());
-      payload.append("email", formData.email.trim());
-      payload.append("password", formData.password);
-      const response = await fetch(`${API_BASE_URL}/api/users/register`, {
-        method: "POST",
-        body: payload,
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Registration failed");
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data));
+      const form = new FormData();
+      form.append("name", formData.name.trim());
+      form.append("email", formData.email.trim());
+      form.append("password", formData.password);
+      const data = await api.post<RegisterResponse>("/api/users/register", form, { auth: false });
+      const { token, ...user } = data;
+      setAuth(user, token);
+      toast.success("Account created — welcome!");
       router.push("/dashboard/resumes");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error. Please try again.");
+      toast.error(err instanceof ApiError ? err.message : "Network error. Try again.");
     } finally {
       setLoading(false);
     }
@@ -130,22 +119,12 @@ export default function RegisterPage() {
 
           <div className="mb-6">
             <h1 className="text-2xl font-semibold tracking-normal">Create your account</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Start with the focused one-click resume optimizer.
-            </p>
+            <p className="mt-1 text-sm text-slate-600">Start with the focused one-click resume optimizer.</p>
           </div>
-
-          {error && (
-            <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {error}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div>
-              <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Full name
-              </label>
+              <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-slate-700">Full name</label>
               <input
                 id="name"
                 type="text"
@@ -153,15 +132,16 @@ export default function RegisterPage() {
                 onChange={(e) => handleInputChange("name", e.target.value)}
                 onBlur={() => handleBlur("name")}
                 placeholder="Alex Morgan"
+                autoComplete="name"
+                maxLength={80}
                 className={inputClass("name")}
+                aria-invalid={Boolean(fieldErrors.name)}
               />
               {fieldErrors.name && <p className="mt-1 text-xs text-rose-600">{fieldErrors.name}</p>}
             </div>
 
             <div>
-              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Email
-              </label>
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
               <input
                 id="email"
                 type="email"
@@ -169,15 +149,15 @@ export default function RegisterPage() {
                 onChange={(e) => handleInputChange("email", e.target.value)}
                 onBlur={() => handleBlur("email")}
                 placeholder="you@example.com"
+                autoComplete="email"
                 className={inputClass("email")}
+                aria-invalid={Boolean(fieldErrors.email)}
               />
               {fieldErrors.email && <p className="mt-1 text-xs text-rose-600">{fieldErrors.email}</p>}
             </div>
 
             <div>
-              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">
-                Password
-              </label>
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
               <div className="relative">
                 <input
                   id="password"
@@ -187,11 +167,14 @@ export default function RegisterPage() {
                   onFocus={() => setPasswordFocused(true)}
                   onBlur={() => { handleBlur("password"); setPasswordFocused(false); }}
                   placeholder="Minimum 8 characters"
+                  autoComplete="new-password"
                   className={`${inputClass("password")} pr-10`}
+                  aria-invalid={Boolean(fieldErrors.password)}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   className="absolute right-2 top-1/2 rounded-md p-1.5 text-slate-500 -translate-y-1/2 hover:bg-slate-100"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -199,17 +182,17 @@ export default function RegisterPage() {
               </div>
               {(passwordFocused || formData.password.length > 0) && (
                 <ul className="mt-2 space-y-1">
-                {[
-                  { pass: formData.password.length >= 8, label: "At least 8 characters" },
-                  { pass: /[A-Z]/.test(formData.password), label: "One uppercase letter" },
-                  { pass: /[0-9]/.test(formData.password), label: "One number" },
-                  { pass: /[^A-Za-z0-9]/.test(formData.password), label: "One symbol (@#$! etc.)" },
-                ].map(({ pass, label }) => (
-                  <li key={label} className={`flex items-center gap-1.5 text-xs ${pass ? "text-emerald-600" : "text-slate-400"}`}>
-                    {pass ? <Check className="h-3.5 w-3.5" /> : <span className="inline-block h-3.5 w-3.5 rounded-full border border-current" />}
-                    {label}
-                  </li>
-                ))}
+                  {[
+                    { pass: formData.password.length >= 8, label: "At least 8 characters" },
+                    { pass: /[A-Z]/.test(formData.password), label: "One uppercase letter" },
+                    { pass: /[0-9]/.test(formData.password), label: "One number" },
+                    { pass: /[^A-Za-z0-9]/.test(formData.password), label: "One symbol (@#$! etc.)" },
+                  ].map(({ pass, label }) => (
+                    <li key={label} className={`flex items-center gap-1.5 text-xs ${pass ? "text-emerald-600" : "text-slate-400"}`}>
+                      {pass ? <Check className="h-3.5 w-3.5" /> : <span className="inline-block h-3.5 w-3.5 rounded-full border border-current" />}
+                      {label}
+                    </li>
+                  ))}
                 </ul>
               )}
             </div>
@@ -255,7 +238,7 @@ export default function RegisterPage() {
             ))}
           </div>
         </div>
-        <p className="text-sm text-slate-500">No prompt writing. No template marketplace. Just the resume workflow.</p>
+        <p className="text-sm text-slate-500">50 free starter points on signup. No card needed.</p>
       </section>
     </main>
   );

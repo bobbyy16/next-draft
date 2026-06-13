@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -11,10 +11,8 @@ import {
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
-import { getAuthToken, getUser } from "@/lib/auth";
-import { API_BASE_URL } from "@/lib/utils";
-
-/* ── Types ─────────────────────────────────────── */
+import { api, ApiError } from "@/lib/api";
+import { getUser, type User } from "@/lib/auth";
 
 interface Resume {
   _id: string;
@@ -33,72 +31,50 @@ interface SuggestionHistory {
   createdAt: string;
 }
 
-interface LedgerEntry {
-  type: "credit" | "debit";
-  points: number;
-  rupees?: number;
-  reason?: string;
-  createdAt?: string;
-}
-
-/* ── Helpers ───────────────────────────────────── */
-
-
-
-/* ── Page ──────────────────────────────────────── */
-
 export default function ActivityPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [history, setHistory] = useState<SuggestionHistory[]>([]);
+  const [user, setLiveUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"resumes" | "points">("resumes");
-
-  const user = getUser();
-  const ledger: LedgerEntry[] = [...(user?.pointsLedger ?? [])].reverse();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const token = getAuthToken();
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const [resumeRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/resumes`, { headers }),
+      const [resumeData, freshUser] = await Promise.all([
+        api.get<Resume[]>("/api/resumes"),
+        api.get<User>("/api/users/me").catch(() => getUser()),
       ]);
-
-      if (!resumeRes.ok) throw new Error("Failed to load resumes");
-      const resumeData: Resume[] = await resumeRes.json();
       setResumes(resumeData);
+      setLiveUser(freshUser);
 
-      // Fetch suggestion history for all resumes
       const allHistory: SuggestionHistory[] = [];
       await Promise.all(
         resumeData.map(async (resume) => {
           try {
-            const res = await fetch(`${API_BASE_URL}/api/suggestions/resume/${resume._id}`, { headers });
-            if (res.ok) {
-              const data: SuggestionHistory[] = await res.json();
-              allHistory.push(...data.map((item) => ({ ...item, resumeId: resume._id })));
-            }
+            const data = await api.get<SuggestionHistory[]>(
+              `/api/suggestions/resume/${resume._id}`
+            );
+            allHistory.push(...data.map((item) => ({ ...item, resumeId: resume._id })));
           } catch {
-            /* skip failed fetches */
+            /* skip */
           }
         })
       );
-
       allHistory.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setHistory(allHistory);
-    } catch {
-      /* silent */
+    } catch (err) {
+      if (err instanceof ApiError) console.warn(err.message);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
+  const ledger = [...(user?.pointsLedger ?? [])].reverse();
   const resumeMap = new Map(resumes.map((r) => [r._id, r]));
 
   if (loading) {
@@ -117,7 +93,6 @@ export default function ActivityPage() {
   return (
     <div className="min-h-screen bg-slate-100 p-4 text-slate-950 lg:p-6">
       <div className="mx-auto max-w-5xl space-y-5">
-        {/* Header */}
         <header>
           <Link
             href="/dashboard"
@@ -136,7 +111,6 @@ export default function ActivityPage() {
           </p>
         </header>
 
-        {/* Stats row */}
         <section className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <FileText className="mb-3 h-5 w-5 text-slate-400" />
@@ -155,11 +129,11 @@ export default function ActivityPage() {
           </div>
         </section>
 
-        {/* Tabs */}
         <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1">
           {tabs.map((tab) => (
             <button
               key={tab.key}
+              type="button"
               onClick={() => setActiveTab(tab.key)}
               className={`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors ${
                 activeTab === tab.key
@@ -173,7 +147,6 @@ export default function ActivityPage() {
           ))}
         </div>
 
-        {/* Tab content */}
         {activeTab === "resumes" ? (
           <section className="rounded-lg border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-5 py-3">
@@ -213,13 +186,13 @@ export default function ActivityPage() {
                           )}
                           <span>{new Date(item.createdAt).toLocaleString()}</span>
                           {item.pointsSpent ? <span>· {item.pointsSpent} pts</span> : null}
-                          {item.appliedCount ? (
-                            <span>· {item.appliedCount} changes applied</span>
-                          ) : null}
                         </div>
                       </div>
                       <Link href="/dashboard/resumes">
-                        <button className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
                           Open optimizer
                           <ArrowUpRight className="h-3.5 w-3.5" />
                         </button>
@@ -250,19 +223,24 @@ export default function ActivityPage() {
                     key={`${item.createdAt}-${index}`}
                     className="flex items-center justify-between gap-4 px-5 py-4"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-sm font-medium">{item.reason || "Point activity"}</div>
-                      <div className="mt-0.5 text-xs text-slate-500">
-                        {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span>{item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}</span>
+                        {item.adminAction && (
+                          <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700">
+                            admin
+                          </span>
+                        )}
+                        {item.paymentId && (
+                          <span className="font-mono text-[10px] text-slate-400">{item.paymentId}</span>
+                        )}
                       </div>
                     </div>
                     <div
-                      className={`text-sm font-bold ${
-                        item.type === "credit" ? "text-emerald-600" : "text-rose-600"
-                      }`}
+                      className={`text-sm font-bold ${item.type === "credit" ? "text-emerald-600" : "text-rose-600"}`}
                     >
-                      {item.type === "credit" ? "+" : "−"}
-                      {item.points}
+                      {item.type === "credit" ? "+" : "−"}{item.points}
                     </div>
                   </div>
                 ))

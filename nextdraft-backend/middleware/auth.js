@@ -1,34 +1,52 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User_model");
 
-// Middleware to protect routes
 const protect = async (req, res, next) => {
-  let token;
-
-  // Check for token in Authorization header
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    try {
-      token = req.headers.authorization.split(" ")[1];
-
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Attach user to request, exclude password
-      req.user = await User.findById(decoded.id).select("-password");
-
-      next();
-    } catch (error) {
-      console.error(error);
-      res.status(401).json({ message: "Not authorized, token failed" });
-    }
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Not authorized, no token" });
   }
 
+  const token = header.split(" ")[1];
   if (!token) {
-    res.status(401).json({ message: "Not authorized, no token" });
+    return res.status(401).json({ message: "Not authorized, no token" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(401).json({ message: "User no longer exists" });
+    }
+    if (user.status === "banned") {
+      return res.status(403).json({
+        message: "Account suspended. Contact support if you believe this is a mistake.",
+      });
+    }
+    req.user = user;
+    return next();
+  } catch (error) {
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Session expired. Please log in again." });
+    }
+    return res.status(401).json({ message: "Not authorized, token failed" });
   }
 };
 
-module.exports = { protect };
+const adminOnly = (req, res, next) => {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+  return next();
+};
+
+const ownerOnly = (paramKey = "id") => (req, res, next) => {
+  if (!req.user) return res.status(401).json({ message: "Not authorized" });
+  if (req.user.role === "admin") return next();
+  if (String(req.user._id) !== String(req.params[paramKey])) {
+    return res.status(403).json({ message: "Not authorized to access this resource" });
+  }
+  return next();
+};
+
+module.exports = { protect, adminOnly, ownerOnly };

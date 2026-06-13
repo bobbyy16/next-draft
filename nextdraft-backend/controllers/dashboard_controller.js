@@ -6,29 +6,25 @@ const getDashboard = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const totalResumes = await Resume.countDocuments({ userId });
-    const totalJobDescriptions = await JobDescription.countDocuments({
-      userId,
-    });
-    const totalSuggestions = await Suggestion.countDocuments({
-      resumeId: { $in: (await Resume.find({ userId })).map((r) => r._id) },
-    });
+    const [latestResumes, totalJobDescriptions, totalResumes] = await Promise.all([
+      Resume.find({ userId }).sort({ createdAt: -1 }).limit(5).lean(),
+      JobDescription.countDocuments({ userId }),
+      Resume.countDocuments({ userId }),
+    ]);
 
-    const latestResumes = await Resume.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(5);
+    const allResumeIds = await Resume.find({ userId }).select("_id").lean();
+    const resumeIds = allResumeIds.map((r) => r._id);
 
-    const latestJobDescriptions = await JobDescription.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(5);
+    const [totalSuggestions, latestJobDescriptions, latestSuggestions] = await Promise.all([
+      Suggestion.countDocuments({ resumeId: { $in: resumeIds } }),
+      JobDescription.find({ userId }).sort({ createdAt: -1 }).limit(5).lean(),
+      Suggestion.find({ resumeId: { $in: latestResumes.map((r) => r._id) } })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean(),
+    ]);
 
-    const latestSuggestions = await Suggestion.find({
-      resumeId: { $in: latestResumes.map((r) => r._id) },
-    })
-      .sort({ createdAt: -1 })
-      .limit(5);
-
-    res.status(200).json({
+    return res.status(200).json({
       totalResumes,
       totalJobDescriptions,
       totalSuggestions,
@@ -37,8 +33,8 @@ const getDashboard = async (req, res) => {
       latestSuggestions,
     });
   } catch (error) {
-    console.error("Dashboard error:", error);
-    res.status(500).json({ message: "Failed to fetch dashboard data" });
+    console.error("[Dashboard] error:", error.message);
+    return res.status(500).json({ message: "Failed to fetch dashboard data" });
   }
 };
 

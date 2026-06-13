@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowRight,
   Clock,
@@ -12,10 +12,8 @@ import {
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
-import { getAuthToken, getUser } from "@/lib/auth";
-import { API_BASE_URL } from "@/lib/utils";
-
-/* ── Types ─────────────────────────────────────── */
+import { api } from "@/lib/api";
+import { getUser, type User } from "@/lib/auth";
 
 interface Resume {
   _id: string;
@@ -33,35 +31,32 @@ interface SuggestionHistory {
   createdAt: string;
 }
 
-/* ── Page ──────────────────────────────────────── */
-
 export default function DashboardPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [recentOptimizations, setRecentOptimizations] = useState<SuggestionHistory[]>([]);
+  const [user, setLiveUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const user = getUser();
 
   const fetchData = useCallback(async () => {
     try {
-      const token = getAuthToken();
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const response = await fetch(`${API_BASE_URL}/api/resumes`, { headers });
-      if (!response.ok) return;
-      const resumeData: Resume[] = await response.json();
+      const [resumeData, freshUser] = await Promise.all([
+        api.get<Resume[]>("/api/resumes"),
+        api.get<User>("/api/users/me").catch(() => getUser()),
+      ]);
       setResumes(resumeData);
+      setLiveUser(freshUser);
 
-      // Fetch recent optimization history from all resumes
       const allHistory: SuggestionHistory[] = [];
       await Promise.all(
         resumeData.slice(0, 5).map(async (resume) => {
           try {
-            const res = await fetch(`${API_BASE_URL}/api/suggestions/resume/${resume._id}`, { headers });
-            if (res.ok) {
-              const data: SuggestionHistory[] = await res.json();
-              allHistory.push(...data);
-            }
-          } catch { /* skip */ }
+            const data = await api.get<SuggestionHistory[]>(
+              `/api/suggestions/resume/${resume._id}`
+            );
+            allHistory.push(...data);
+          } catch {
+            /* skip */
+          }
         })
       );
       allHistory.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -72,7 +67,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
   const editedCount = resumes.filter((r) => r.isEdited).length;
@@ -81,7 +76,6 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-100 p-4 text-slate-950 lg:p-6">
       <div className="mx-auto max-w-6xl space-y-5">
-        {/* Welcome header */}
         <header className="rounded-lg border border-slate-200 bg-white p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -97,7 +91,10 @@ export default function DashboardPage() {
               </p>
             </div>
             <Link href="/dashboard/resumes">
-              <button className="inline-flex h-11 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800">
+              <button
+                type="button"
+                className="inline-flex h-11 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+              >
                 Open optimizer
                 <ArrowRight className="h-4 w-4" />
               </button>
@@ -105,7 +102,6 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Stats */}
         <section className="grid gap-4 md:grid-cols-4">
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <FileText className="mb-4 h-5 w-5 text-slate-500" />
@@ -129,18 +125,21 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Recent activity row */}
         <div className="grid gap-5 lg:grid-cols-2">
-          {/* Recent resumes */}
           <section className="rounded-lg border border-slate-200 bg-white">
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
               <h2 className="text-sm font-semibold">Recent resumes</h2>
-              <Link href="/dashboard/activity" className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-900">
+              <Link
+                href="/dashboard/activity"
+                className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-900"
+              >
                 See all <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
             <div className="divide-y divide-slate-200">
-              {resumes.length === 0 ? (
+              {loading ? (
+                <div className="p-6 text-sm text-slate-400">Loading...</div>
+              ) : resumes.length === 0 ? (
                 <div className="p-6 text-sm text-slate-500">
                   No resumes yet. Open the optimizer and upload your first resume.
                 </div>
@@ -154,7 +153,10 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <Link href="/dashboard/resumes">
-                      <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
                         Edit
                       </button>
                     </Link>
@@ -164,16 +166,17 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* Recent optimization runs + points */}
           <div className="space-y-5">
-            {/* Recent AI runs */}
             <section className="rounded-lg border border-slate-200 bg-white">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-slate-400" />
                   <h2 className="text-sm font-semibold">Recent optimizations</h2>
                 </div>
-                <Link href="/dashboard/activity" className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-900">
+                <Link
+                  href="/dashboard/activity"
+                  className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-900"
+                >
                   See all <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
@@ -196,14 +199,16 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            {/* Recent points */}
             <section className="rounded-lg border border-slate-200 bg-white">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-slate-400" />
                   <h2 className="text-sm font-semibold">Points history</h2>
                 </div>
-                <Link href="/dashboard/activity" className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-900">
+                <Link
+                  href="/dashboard/activity"
+                  className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-900"
+                >
                   See all <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
@@ -219,7 +224,11 @@ export default function DashboardPage() {
                           {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
                         </div>
                       </div>
-                      <span className={`text-sm font-bold ${item.type === "credit" ? "text-emerald-600" : "text-rose-600"}`}>
+                      <span
+                        className={`text-sm font-bold ${
+                          item.type === "credit" ? "text-emerald-600" : "text-rose-600"
+                        }`}
+                      >
                         {item.type === "credit" ? "+" : "−"}{item.points}
                       </span>
                     </div>

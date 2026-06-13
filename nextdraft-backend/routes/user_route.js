@@ -3,40 +3,41 @@ const router = express.Router();
 const {
   registerUser,
   loginUser,
+  getMe,
   forgotPassword,
   resetPassword,
   getUser,
   updateUser,
-  addPoints,
   deleteUser,
-  getAllUsers,
 } = require("../controllers/user_controller");
-const { protect } = require("../middleware/auth");
+const { protect, ownerOnly } = require("../middleware/auth");
+const { validateObjectId } = require("../middleware/validate");
 const upload = require("../middleware/upload");
+const {
+  authLimiter,
+  registerLimiter,
+  passwordResetLimiter,
+} = require("../middleware/rate_limit");
 
-// Registration with file upload
-router.post("/register", upload.single("profileImage"), registerUser);
+// Auth
+router.post("/register", registerLimiter, upload.single("profileImage"), registerUser);
+router.post("/login", authLimiter, loginUser);
+router.post("/forgot-password", passwordResetLimiter, forgotPassword);
+router.post("/reset-password", passwordResetLimiter, resetPassword);
 
-// Login
-router.post("/login", loginUser);
+// Current user
+router.get("/me", protect, getMe);
 
-// Password reset
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password", resetPassword);
-
-// Get all users
-router.get("/", protect, getAllUsers);
-
-// Add demo points pack
-router.post("/points", protect, addPoints);
-
-// Get user by ID
-router.get("/:id", protect, getUser);
-
-// Update user
-router.put("/:id", protect, upload.single("profileImage"), updateUser);
-
-// Delete user
-router.delete("/:id", protect, deleteUser);
+// By ID — self or admin only
+router.get("/:id", protect, validateObjectId("id"), ownerOnly("id"), getUser);
+router.put(
+  "/:id",
+  protect,
+  validateObjectId("id"),
+  ownerOnly("id"),
+  upload.single("profileImage"),
+  updateUser
+);
+router.delete("/:id", protect, validateObjectId("id"), ownerOnly("id"), deleteUser);
 
 module.exports = router;

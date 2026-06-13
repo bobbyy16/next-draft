@@ -7,6 +7,8 @@ require("dotenv").config();
 
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+const POINTS_PER_EDIT = 50;
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
@@ -56,10 +58,9 @@ const parseAiSuggestions = async (resumeText, jobText) => {
       .replace(/```\n?/g, "")
       .trim();
     parsed = JSON.parse(cleaned);
-  } catch {
-    parsed = {
-      suggestions: [],
-    };
+  } catch (e) {
+    console.error("[Gemini] parse error:", e.message);
+    parsed = { suggestions: [] };
   }
 
   const suggestionsData = Array.isArray(parsed.suggestions)
@@ -68,8 +69,6 @@ const parseAiSuggestions = async (resumeText, jobText) => {
 
   return { suggestionsData };
 };
-
-
 
 const applySuggestionText = (resumeText, suggestions = []) => {
   let updatedText = resumeText;
@@ -86,28 +85,17 @@ const applySuggestionText = (resumeText, suggestions = []) => {
 };
 
 const generateResumeSuggestions = async (resumeId, jobId) => {
-  try {
-    const resume = await Resume.findById(resumeId);
-    const job = await JobDescription.findById(jobId);
+  const resume = await Resume.findById(resumeId);
+  const job = await JobDescription.findById(jobId);
+  if (!resume || !job) throw new Error("Resume or Job Description not found");
 
-    if (!resume || !job) throw new Error("Resume or Job Description not found");
+  const { suggestionsData } = await parseAiSuggestions(resume.parsedText, job.parsedText);
 
-    const { suggestionsData } = await parseAiSuggestions(
-      resume.parsedText,
-      job.parsedText
-    );
-
-    const suggestion = await Suggestion.create({
-      resumeId,
-      jobId,
-      suggestions: suggestionsData,
-    });
-
-    return suggestion;
-  } catch (error) {
-    console.error("Error in generateResumeSuggestions:", error);
-    throw error;
-  }
+  return await Suggestion.create({
+    resumeId,
+    jobId,
+    suggestions: suggestionsData,
+  });
 };
 
 const generateAndApplySuggestions = async ({
@@ -119,94 +107,105 @@ const generateAndApplySuggestions = async ({
 }) => {
   const resume = await Resume.findById(resumeId);
   if (!resume) throw new Error("Resume not found");
-  if (resume.userId.toString() !== userId.toString()) throw new Error("Not authorized");
-  if (!jobText || jobText.trim().length < 40) {
-    throw new Error("Paste a complete job description before using AI optimize");
-  }
-  const user = await User.findById(userId);
-  if (!user) throw new Error("User not found");
-  if ((user.pointsBalance || 0) < 50) {
-    throw new Error("Not enough points. Add 50 points to edit one resume.");
-  }
+  if (String(resume.userId) !== String(userId)) throw new Error("Not authorized");
 
-  const job = await JobDescription.create({
-    userId,
-    parsedText: jobText.trim(),
-    roleTitle: roleTitle || "Target role",
-    companyName: companyName || "",
-    keywords: [],
-  });
-
-  const { suggestionsData } = await parseAiSuggestions(
-    resume.parsedText,
-    job.parsedText
+  // Atomic conditional debit — only succeeds if enough points
+  const debited = await User.findOneAndUpdate(
+    { _id: userId, pointsBalance: { $gte: POINTS_PER_EDIT } },
+    {
+      $inc: { pointsBalance: -POINTS_PER_EDIT },
+      $push: {
+        pointsLedger: {
+          type: "debit",
+          points: POINTS_PER_EDIT,
+          rupees: 0,
+          reason: `AI resume edit: ${resume.fileName}`,
+        },
+      },
+    },
+    { new: true }
   );
-  const { updatedText, applied } = applySuggestionText(resume.parsedText, suggestionsData);
 
-  const suggestion = await Suggestion.create({
-    resumeId,
-    jobId: job._id,
-    suggestions: applied.length > 0 ? applied : suggestionsData,
-    appliedCount: applied.length,
-    pointsSpent: 50,
-    jobTitle: roleTitle || "Target role",
-  });
+  if (!debited) {
+    throw new Error(`Not enough points. ${POINTS_PER_EDIT} points are required per AI edit.`);
+  }
 
-  resume.parsedText = updatedText;
-  resume.version += 1;
-  resume.isEdited = true;
-  await resume.save();
+  let suggestion;
+  try {
+    const job = await JobDescription.create({
+      userId,
+      parsedText: jobText.trim(),
+      roleTitle: roleTitle || "Target role",
+      companyName: companyName || "",
+      keywords: [],
+    });
 
-  user.pointsBalance = (user.pointsBalance || 0) - 50;
-  user.pointsLedger.push({
-    type: "debit",
-    points: 50,
-    rupees: 0,
-    reason: `AI resume edit: ${resume.fileName}`,
-  });
-  await user.save();
+    const { suggestionsData } = await parseAiSuggestions(resume.parsedText, job.parsedText);
+    const { updatedText, applied } = applySuggestionText(resume.parsedText, suggestionsData);
 
-  return {
-    suggestion,
-    resume,
-    pointsBalance: user.pointsBalance,
-    optimizedText: updatedText,
-    appliedCount: applied.length,
-    totalSuggestions: suggestionsData.length,
-  };
+    suggestion = await Suggestion.create({
+      resumeId,
+      jobId: job._id,
+      suggestions: applied.length > 0 ? applied : suggestionsData,
+      appliedCount: applied.length,
+      pointsSpent: POINTS_PER_EDIT,
+      jobTitle: roleTitle || "Target role",
+    });
+
+    resume.parsedText = updatedText;
+    resume.version += 1;
+    resume.isEdited = true;
+    await resume.save();
+
+    return {
+      suggestion,
+      resume,
+      pointsBalance: debited.pointsBalance,
+      optimizedText: updatedText,
+      appliedCount: applied.length,
+      totalSuggestions: suggestionsData.length,
+    };
+  } catch (err) {
+    // Refund on failure — atomic credit
+    await User.findByIdAndUpdate(userId, {
+      $inc: { pointsBalance: POINTS_PER_EDIT },
+      $push: {
+        pointsLedger: {
+          type: "credit",
+          points: POINTS_PER_EDIT,
+          rupees: 0,
+          reason: "Refund — AI edit failed",
+        },
+      },
+    });
+    throw err;
+  }
 };
 
 const applySuggestionsToPdf = async (suggestionId) => {
-  try {
-    if (!suggestionId) throw new Error("suggestionId required");
+  if (!suggestionId) throw new Error("suggestionId required");
 
-    const suggestion = await Suggestion.findById(suggestionId);
-    if (!suggestion) throw new Error("Suggestion not found");
+  const suggestion = await Suggestion.findById(suggestionId);
+  if (!suggestion) throw new Error("Suggestion not found");
 
-    const resume = await Resume.findById(suggestion.resumeId);
-    if (!resume) throw new Error("Linked resume not found");
+  const resume = await Resume.findById(suggestion.resumeId);
+  if (!resume) throw new Error("Linked resume not found");
 
-    const { updatedText, applied } = applySuggestionText(
-      resume.parsedText,
-      suggestion.suggestions
-    );
+  const { updatedText, applied } = applySuggestionText(resume.parsedText, suggestion.suggestions);
 
-    resume.parsedText = updatedText;
-    if (applied.length > 0) {
-      resume.version += 1;
-      resume.isEdited = true;
-    }
-    await resume.save();
-
-    return resume.fileUrl;
-  } catch (error) {
-    console.error("Error in applySuggestionsToPdf:", error);
-    throw error;
+  resume.parsedText = updatedText;
+  if (applied.length > 0) {
+    resume.version += 1;
+    resume.isEdited = true;
   }
+  await resume.save();
+
+  return resume.fileUrl;
 };
 
 module.exports = {
   generateResumeSuggestions,
   generateAndApplySuggestions,
   applySuggestionsToPdf,
+  POINTS_PER_EDIT,
 };

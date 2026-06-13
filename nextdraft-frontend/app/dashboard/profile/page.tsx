@@ -1,144 +1,167 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowRight, CreditCard, Loader2, Save, Trash2, User, Wallet } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  ArrowRight,
+  CreditCard,
+  Loader2,
+  Save,
+  ShieldAlert,
+  User as UserIcon,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
-import { getAuthToken, getUser, logout } from "@/lib/auth";
-import { API_BASE_URL } from "@/lib/utils";
+import { toast } from "sonner";
+import { api, ApiError } from "@/lib/api";
+import { getUser, setUser, type User } from "@/lib/auth";
+import { openRazorpayCheckout } from "@/lib/razorpay";
 
-interface UserProfile {
-  _id: string;
-  name: string;
-  email: string;
-  pointsBalance?: number;
-  pointsLedger?: Array<{
-    type: "credit" | "debit";
-    points: number;
-    rupees?: number;
-    reason?: string;
-    createdAt?: string;
-  }>;
-  profileImage?: {
-    url: string;
-    public_id: string;
-  };
+interface Pack {
+  id: "starter" | "plus" | "pro";
+  points: number;
+  rupees: number;
+  label: string;
 }
 
-const packs = [
-  { id: "starter", label: "50 points", rupees: 50, detail: "Edit 1 resume" },
-  { id: "plus", label: "150 points", rupees: 150, detail: "Edit 3 resumes" },
-  { id: "pro", label: "500 points", rupees: 500, detail: "Edit 10 resumes" },
-];
+interface PacksResponse {
+  enabled: boolean;
+  keyId: string;
+  packs: Pack[];
+}
+
+interface OrderResponse {
+  transactionId: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+  keyId: string;
+  pack: Pack;
+  user: { name: string; email: string };
+}
+
+interface VerifyResponse {
+  message: string;
+  pointsBalance: number;
+}
+
+interface MyTransaction {
+  _id: string;
+  pack: string;
+  points: number;
+  rupees: number;
+  status: "created" | "paid" | "failed" | "refunded";
+  createdAt: string;
+}
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<User | null>(null);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [buying, setBuying] = useState("");
-  const [deleting, setDeleting] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [buying, setBuying] = useState<string>("");
+  const [packsResp, setPacksResp] = useState<PacksResponse | null>(null);
+  const [transactions, setTransactions] = useState<MyTransaction[]>([]);
 
-  useEffect(() => {
-    const user = getUser();
-    if (user) {
-      setProfile(user);
-      setName(user.name);
+  const refreshUser = useCallback(async () => {
+    try {
+      const me = await api.get<User>("/api/users/me");
+      setProfile(me);
+      setName(me.name);
+      setUser(me);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return;
+      console.error(err);
     }
-    setLoading(false);
   }, []);
 
-  const persistUser = (user: UserProfile) => {
-    const token = getAuthToken();
-    const stored = { ...user, token };
-    localStorage.setItem("user", JSON.stringify(stored));
-    setProfile(user);
-    setName(user.name);
-  };
+  useEffect(() => {
+    const stored = getUser();
+    if (stored) {
+      setProfile(stored);
+      setName(stored.name);
+    }
+    Promise.all([
+      api.get<PacksResponse>("/api/payments/packs", { auth: false }).then(setPacksResp).catch(() => null),
+      api.get<MyTransaction[]>("/api/payments/me").then(setTransactions).catch(() => null),
+      refreshUser(),
+    ]).finally(() => setLoading(false));
+  }, [refreshUser]);
 
   const saveProfile = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!profile) return;
-    setError("");
-    setMessage("");
-
-    const trimmedName = name.trim();
-    if (!trimmedName) { setError("Name is required."); return; }
-    if (trimmedName.length < 2) { setError("Name must be at least 2 characters."); return; }
-
+    const trimmed = name.trim();
+    if (!trimmed || trimmed.length < 2) {
+      toast.error("Name must be at least 2 characters.");
+      return;
+    }
     setSaving(true);
     try {
-      const payload = new FormData();
-      payload.append("name", trimmedName);
-      const token = getAuthToken();
-      const response = await fetch(`${API_BASE_URL}/api/users/${profile._id}`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-        body: payload,
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Update failed");
-      persistUser(data);
-      setMessage("Profile updated.");
+      const form = new FormData();
+      form.append("name", trimmed);
+      const updated = await api.put<User>(`/api/users/${profile._id}`, form);
+      setProfile(updated);
+      setUser(updated);
+      toast.success("Profile updated");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Update failed");
+      toast.error(err instanceof ApiError ? err.message : "Update failed");
     } finally {
       setSaving(false);
     }
   };
 
-  const addPoints = async (pack: string) => {
-    setBuying(pack);
-    setError("");
-    setMessage("");
+  const buyPack = async (pack: Pack) => {
+    if (!profile) return;
+    if (!packsResp?.enabled) {
+      toast.error("Payments are not configured yet. Please contact support.");
+      return;
+    }
+    setBuying(pack.id);
     try {
-      const token = getAuthToken();
-      const response = await fetch(`${API_BASE_URL}/api/users/points`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const order = await api.post<OrderResponse>("/api/payments/create-order", { pack: pack.id });
+      await openRazorpayCheckout({
+        keyId: order.keyId,
+        orderId: order.orderId,
+        amountPaise: order.amount,
+        currency: order.currency,
+        packLabel: `${order.pack.label}`,
+        user: order.user,
+        onSuccess: async (resp) => {
+          try {
+            const verified = await api.post<VerifyResponse>("/api/payments/verify", resp);
+            const updatedUser: User = { ...profile, pointsBalance: verified.pointsBalance };
+            setProfile(updatedUser);
+            setUser(updatedUser);
+            toast.success(`${order.pack.points} points added to your wallet`);
+            // Refresh ledger & transactions
+            void refreshUser();
+            void api.get<MyTransaction[]>("/api/payments/me").then(setTransactions).catch(() => null);
+          } catch (verifyErr) {
+            toast.error(
+              verifyErr instanceof ApiError
+                ? verifyErr.message
+                : "Payment verification failed. Contact support."
+            );
+          } finally {
+            setBuying("");
+          }
         },
-        body: JSON.stringify({ pack }),
+        onDismiss: () => {
+          setBuying("");
+        },
+        onFailure: (description) => {
+          toast.error(description || "Payment failed");
+          setBuying("");
+        },
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Could not add points");
-      persistUser(data);
-      setMessage("Points added to your wallet.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add points");
-    } finally {
+      toast.error(err instanceof ApiError ? err.message : "Could not start payment");
       setBuying("");
     }
   };
 
-  const deleteAccount = async () => {
-    if (!profile) return;
-    setDeleting(true);
-    setError("");
-    try {
-      const token = getAuthToken();
-      const response = await fetch(`${API_BASE_URL}/api/users/${profile._id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) logout();
-      else {
-        const data = await response.json();
-        setError(data.message || "Delete failed");
-      }
-    } catch {
-      setError("Delete failed");
-    } finally {
-      setDeleting(false);
-      setShowDeleteModal(false);
-    }
-  };
-
-  if (loading) {
+  if (loading || !profile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100">
         <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
@@ -146,23 +169,17 @@ export default function ProfilePage() {
     );
   }
 
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-slate-100 p-6 text-slate-950">
-        <div className="rounded-lg border border-slate-200 bg-white p-6">Unable to load profile.</div>
-      </div>
-    );
-  }
-
   const fullLedger = [...(profile.pointsLedger ?? [])].reverse();
   const ledger = fullLedger.slice(0, 5);
+  const packsToShow = packsResp?.packs ?? [];
+  const paymentsDisabled = packsResp ? !packsResp.enabled : false;
 
   return (
     <main className="min-h-screen bg-slate-100 p-4 text-slate-950 lg:p-6">
       <div className="mx-auto max-w-6xl space-y-5">
         <header>
           <div className="flex items-center gap-2 text-sm font-semibold text-teal-700">
-            <User className="h-4 w-4" />
+            <UserIcon className="h-4 w-4" />
             Account
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-normal">Profile and points</h1>
@@ -171,9 +188,12 @@ export default function ProfilePage() {
           </p>
         </header>
 
-        {(message || error) && (
-          <div className={`rounded-md border px-4 py-3 text-sm ${error ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-            {error || message}
+        {paymentsDisabled && (
+          <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              Payments are temporarily unavailable. New point packs can be bought once the payment provider is reconnected.
+            </div>
           </div>
         )}
 
@@ -182,11 +202,25 @@ export default function ProfilePage() {
             <div className="rounded-lg border border-slate-200 bg-white p-5">
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 text-xl font-semibold text-white">
-                  {profile.name.charAt(0).toUpperCase()}
+                  {profile.profileImage?.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={profile.profileImage.url}
+                      alt={profile.name}
+                      className="h-14 w-14 rounded-full object-cover"
+                    />
+                  ) : (
+                    profile.name.charAt(0).toUpperCase()
+                  )}
                 </div>
                 <div className="min-w-0">
                   <div className="truncate text-base font-semibold">{profile.name}</div>
                   <div className="truncate text-sm text-slate-500">{profile.email}</div>
+                  {profile.role === "admin" && (
+                    <span className="mt-1 inline-block rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+                      ADMIN
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -213,6 +247,7 @@ export default function ProfilePage() {
                     id="name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
+                    maxLength={80}
                     className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-teal-700"
                   />
                 </div>
@@ -243,24 +278,62 @@ export default function ProfilePage() {
                 <h2 className="text-sm font-semibold">Buy points</h2>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                {packs.map((pack) => (
+                {packsToShow.map((pack) => (
                   <button
                     key={pack.id}
-                    onClick={() => addPoints(pack.id)}
-                    disabled={!!buying}
-                    className="rounded-lg border border-slate-200 p-4 text-left hover:border-teal-700 hover:bg-teal-50 disabled:opacity-60"
+                    type="button"
+                    onClick={() => buyPack(pack)}
+                    disabled={Boolean(buying) || paymentsDisabled}
+                    className="group rounded-lg border border-slate-200 p-4 text-left transition-colors hover:border-teal-700 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <div className="text-sm font-semibold">{pack.label}</div>
-                    <div className="mt-1 text-2xl font-semibold">Rs {pack.rupees}</div>
-                    <div className="mt-1 text-xs text-slate-500">{pack.detail}</div>
+                    <div className="text-sm font-semibold">{pack.points} points</div>
+                    <div className="mt-1 text-2xl font-semibold">₹{pack.rupees}</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Edit {Math.floor(pack.points / 50)} resume
+                      {Math.floor(pack.points / 50) === 1 ? "" : "s"}
+                    </div>
                     {buying === pack.id && <Loader2 className="mt-3 h-4 w-4 animate-spin" />}
                   </button>
                 ))}
               </div>
               <p className="mt-3 text-xs text-slate-500">
-                This adds points directly for development. Payment gateway wiring can be added later.
+                Secure payments via Razorpay. UPI, cards, and netbanking supported.
               </p>
             </div>
+
+            {transactions.length > 0 && (
+              <div className="rounded-lg border border-slate-200 bg-white p-5">
+                <h2 className="mb-3 text-sm font-semibold">Payment history</h2>
+                <div className="divide-y divide-slate-200">
+                  {transactions.slice(0, 5).map((t) => (
+                    <div key={t._id} className="flex items-center justify-between py-3">
+                      <div>
+                        <div className="text-sm font-medium capitalize">{t.pack} pack</div>
+                        <div className="text-xs text-slate-500">
+                          {new Date(t.createdAt).toLocaleString()} · ₹{t.rupees}
+                        </div>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          t.status === "paid"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : t.status === "failed"
+                            ? "bg-rose-100 text-rose-700"
+                            : t.status === "refunded"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {t.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-slate-500">
+                  Missing a payment? <Link href="/dashboard/support" className="font-semibold text-teal-700 hover:text-teal-800">Contact support</Link>.
+                </p>
+              </div>
+            )}
 
             <div className="rounded-lg border border-slate-200 bg-white p-5">
               <h2 className="mb-3 text-sm font-semibold">Points history</h2>
@@ -275,6 +348,7 @@ export default function ProfilePage() {
                           <div className="text-sm font-medium">{item.reason || "Point activity"}</div>
                           <div className="text-xs text-slate-500">
                             {item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
+                            {item.adminAction ? " · admin" : ""}
                           </div>
                         </div>
                         <div className={`text-sm font-semibold ${item.type === "credit" ? "text-emerald-700" : "text-rose-700"}`}>
@@ -295,51 +369,6 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-rose-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-rose-700">Danger zone</h2>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-slate-600">Delete your account and all associated points and resumes.</p>
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete account
-            </button>
-          </div>
-        </section>
-
-        {/* Delete confirmation modal */}
-        {showDeleteModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-            <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100">
-                <AlertTriangle className="h-6 w-6 text-rose-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-950">Delete your account?</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                This action is permanent and cannot be undone. All your resumes, optimization history, and remaining points will be permanently deleted.
-              </p>
-              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  disabled={deleting}
-                  className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={deleteAccount}
-                  disabled={deleting}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
-                >
-                  {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  Yes, delete my account
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </main>
   );
