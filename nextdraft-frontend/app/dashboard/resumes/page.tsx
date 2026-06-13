@@ -120,6 +120,7 @@ export default function ResumesPage() {
   const [uploading, setUploading] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [previewJd, setPreviewJd] = useState<JobDescription | null>(null);
   const [showMobileJd, setShowMobileJd] = useState(false);
 
@@ -127,8 +128,6 @@ export default function ResumesPage() {
   const [history, setHistory] = useState<SuggestionHistory[]>([]);
   const [appliedCount, setAppliedCount] = useState(0);
   const [pointsBalance, setPointsBalance] = useState<number>(getUser()?.pointsBalance ?? 0);
-  const [capacityPct, setCapacityPct] = useState(0);
-  const printAreaRef = useRef<HTMLDivElement>(null);
 
   const selectedResume = useMemo(
     () => resumes.find((resume) => resume._id === selectedResumeId) ?? null,
@@ -156,43 +155,6 @@ export default function ResumesPage() {
     setCompanyName(selectedJd.companyName || "");
     setJobText(selectedJd.parsedText || "");
   }, [jdMode, selectedJd]);
-
-  // Live-measure resume content vs. one letter page (1056px at 96dpi).
-  // Counts actual rendered child block heights to avoid the article's min-height filler.
-  useEffect(() => {
-    if (!printAreaRef.current) return;
-    const PAGE_HEIGHT = 1056;
-    const root = printAreaRef.current;
-
-    const measure = () => {
-      const article = root.querySelector("article");
-      if (!article) {
-        setCapacityPct(0);
-        return;
-      }
-      const cs = getComputedStyle(article);
-      const padTop = parseFloat(cs.paddingTop) || 0;
-      const padBottom = parseFloat(cs.paddingBottom) || 0;
-      let contentHeight = padTop + padBottom;
-      Array.from(article.children).forEach((child) => {
-        if (child instanceof HTMLElement) {
-          contentHeight += child.offsetHeight;
-          const m = getComputedStyle(child);
-          contentHeight += (parseFloat(m.marginTop) || 0) + (parseFloat(m.marginBottom) || 0);
-        }
-      });
-      setCapacityPct(Math.round((contentHeight / PAGE_HEIGHT) * 100));
-    };
-
-    measure();
-    const observer = new ResizeObserver(measure);
-    const article = root.querySelector("article");
-    if (article) observer.observe(article);
-    Array.from(article?.children || []).forEach((child) => {
-      if (child instanceof HTMLElement) observer.observe(child);
-    });
-    return () => observer.disconnect();
-  }, [draft, selectedResumeId]);
 
   const persistUserPoints = (nextPoints: number) => {
     setPointsBalance(nextPoints);
@@ -288,6 +250,36 @@ export default function ResumesPage() {
     }
   };
 
+  const downloadResume = async () => {
+    if (!selectedResume) {
+      toast.error("Select a resume first.");
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      const [{ pdf }, { ResumePdfDocument }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("@/components/templates/ResumePdfDocument"),
+      ]);
+      const blob = await pdf(<ResumePdfDocument draft={draft} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const baseName = selectedResume.fileName.replace(/\.[^.]+$/, "") || "resume";
+      link.href = url;
+      link.download = `${baseName}-nextdraft.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Resume downloaded");
+    } catch {
+      toast.error("Could not generate the PDF. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const optimizeAndApply = async () => {
     if (!selectedResumeId) {
       toast.error("Select a resume first");
@@ -379,60 +371,6 @@ export default function ResumesPage() {
       <style
         dangerouslySetInnerHTML={{
           __html: `
-            @media print {
-              html, body {
-                margin: 0 !important;
-                padding: 0 !important;
-                height: auto !important;
-                min-height: 0 !important;
-                background: #fff !important;
-                overflow: visible !important;
-              }
-              /* Collapse every container so body height is dominated only by the print area */
-              body * {
-                min-height: 0 !important;
-                max-height: none !important;
-                box-shadow: none !important;
-              }
-              body * { visibility: hidden !important; }
-              #resume-print-area,
-              #resume-print-area * {
-                visibility: visible !important;
-              }
-              #resume-print-area {
-                position: absolute !important;
-                left: 0 !important;
-                top: 0 !important;
-                right: 0 !important;
-                width: 100% !important;
-                max-width: none !important;
-                height: auto !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                background: #fff !important;
-                overflow: visible !important;
-              }
-              #resume-print-area article {
-                margin: 0 auto !important;
-                width: 100% !important;
-                max-width: none !important;
-                min-height: 0 !important;
-                height: auto !important;
-                background: #fff !important;
-                page-break-inside: auto;
-              }
-              /* Avoid orphan/widow breaks inside list items */
-              #resume-print-area section,
-              #resume-print-area li,
-              #resume-print-area p {
-                page-break-inside: avoid;
-              }
-              .editor-only { display: none !important; }
-              @page {
-                size: letter portrait;
-                margin: 0;
-              }
-            }
             [contenteditable][data-placeholder]:empty:before {
               content: attr(data-placeholder);
               color: #94a3b8;
@@ -483,12 +421,18 @@ export default function ResumesPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => window.print()}
-                  disabled={!selectedResumeId}
+                  onClick={downloadResume}
+                  disabled={!selectedResumeId || downloading}
                   className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Download className="h-4 w-4" />
-                  <span className="hidden sm:inline">Export PDF</span>
+                  {downloading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {downloading ? "Preparing..." : "Download PDF"}
+                  </span>
                 </button>
               </div>
             </div>
@@ -558,20 +502,19 @@ export default function ResumesPage() {
                 <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-slate-500" />
-                    <h2 className="text-sm font-semibold">Live preview</h2>
+                    <h2 className="text-sm font-semibold">Resume editor</h2>
                     <span className="hidden text-xs text-slate-500 sm:inline">
-                      · Click any field to edit
+                      · Click any field to edit · PDF downloads without controls
                     </span>
                   </div>
-                  {selectedResume && <PageCapacity pct={capacityPct} />}
                 </div>
                 <div
-                  id="resume-print-area"
-                  ref={printAreaRef}
-                  className="max-h-[calc(100vh-200px)] overflow-auto bg-slate-200 p-4"
+                  className="max-h-[calc(100vh-200px)] overflow-auto bg-slate-200/80 p-3 sm:p-6"
                 >
                   {selectedResume ? (
-                    <BasicResumeTemplate draft={draft} editable onChange={setDraft} />
+                    <div className="mx-auto max-w-[816px] overflow-hidden rounded-sm shadow-xl ring-1 ring-slate-300">
+                      <BasicResumeTemplate draft={draft} editable onChange={setDraft} />
+                    </div>
                   ) : (
                     <EmptyResumeState />
                   )}
@@ -1104,70 +1047,6 @@ function SuggestionsPanel({
         )}
       </div>
     </section>
-  );
-}
-
-function PageCapacity({ pct }: { pct: number }) {
-  // Tone bands matching user expectation: <50 great, 50-79 good, 80-99 close, 100+ overflow
-  const band =
-    pct >= 100
-      ? { color: "rose", label: "Overflows to page 2", icon: AlertCircle }
-      : pct >= 80
-        ? { color: "amber", label: "Close to page limit", icon: AlertCircle }
-        : pct >= 50
-          ? { color: "teal", label: "Good fit", icon: CheckCircle2 }
-          : { color: "emerald", label: "Room to spare", icon: CheckCircle2 };
-
-  const palettes: Record<string, { text: string; bar: string; bg: string; ring: string }> = {
-    emerald: {
-      text: "text-emerald-700",
-      bar: "bg-emerald-500",
-      bg: "bg-emerald-50",
-      ring: "ring-emerald-200",
-    },
-    teal: {
-      text: "text-teal-700",
-      bar: "bg-teal-600",
-      bg: "bg-teal-50",
-      ring: "ring-teal-200",
-    },
-    amber: {
-      text: "text-amber-700",
-      bar: "bg-amber-500",
-      bg: "bg-amber-50",
-      ring: "ring-amber-200",
-    },
-    rose: {
-      text: "text-rose-700",
-      bar: "bg-rose-600",
-      bg: "bg-rose-50",
-      ring: "ring-rose-200",
-    },
-  };
-  const p = palettes[band.color];
-  const Icon = band.icon;
-  const displayPct = Math.min(999, pct);
-
-  return (
-    <div
-      className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 ring-1 ${p.bg} ${p.ring}`}
-      title={`Resume content fills ${displayPct}% of one page (US Letter)`}
-    >
-      <Icon className={`h-3.5 w-3.5 ${p.text}`} />
-      <div className="flex flex-col">
-        <div className="flex items-center gap-2">
-          <span className={`text-[11px] font-semibold ${p.text}`}>Page fill</span>
-          <span className={`font-mono text-[11px] font-bold ${p.text}`}>{displayPct}%</span>
-        </div>
-        <div className="mt-0.5 h-1 w-32 overflow-hidden rounded-full bg-white/70">
-          <div
-            className={`h-full transition-all ${p.bar}`}
-            style={{ width: `${Math.min(100, pct)}%` }}
-          />
-        </div>
-      </div>
-      <span className={`hidden text-[10px] font-medium sm:inline ${p.text}`}>{band.label}</span>
-    </div>
   );
 }
 
